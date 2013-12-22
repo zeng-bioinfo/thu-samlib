@@ -1,4 +1,4 @@
-#include "MyBam.h"
+#include "bam_file.h"
 #include <samtools/sam_header.h>
 #include <iostream>
 using namespace std;

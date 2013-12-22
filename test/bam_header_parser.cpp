@@ -2,7 +2,7 @@
 #include <iostream>
 #include <samtools/sam.h>
 #include <samtools/sam_header.h>
-#include "MyBam.h"
+#include "bam_file.h"
 
 using namespace std;
 
