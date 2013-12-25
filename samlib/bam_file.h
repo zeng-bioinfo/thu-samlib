@@ -4,7 +4,7 @@
 #include <vector>
 #include <iostream>
 #include <boost/filesystem.hpp>
-#include <samtools/sam.h>
+#include "samtools/sam.h"
 using namespace std;
 using namespace boost::filesystem;
 
