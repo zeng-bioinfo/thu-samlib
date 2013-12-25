@@ -2,10 +2,10 @@ include_directories(${THUSAMLIB_SOURCE_DIR}/samlib)
 link_directories(${THUSAMLIB_BINARY_DIR}/samlib)
 
 #core libraries
-set(CORELIBS bam m pthread)
+set(CORELIBS bam z pthread)
 
 #boost libraries
-set(BOOSTLIBS boost_filesystem)
+set(BOOSTLIBS boost_system boost_filesystem)
 
 #BAM header parser executable example
 add_executable(test_bam_header_parser bam_file.cpp bam_header_parser.cpp)
