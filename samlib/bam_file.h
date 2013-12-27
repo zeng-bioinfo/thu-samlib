@@ -8,6 +8,54 @@
 using namespace std;
 using namespace boost::filesystem;
 
+/**
+ * Data structure for a BAM alignment.
+ * This class is for single-end read.
+ */
+class BamAlign{
+	string aln_name;			// read id
+	string aln_read;			// read symbols
+	vector<int> aln_read_qual;	// read quality scores
+	string aln_genome;			// reference symbols
+	string aln_cigar;			// alignment types
+	int aln_qual;				// alignment quality score
+
+	BamAlign& operator=(const BamAlign& _aln){
+		this->aln_name=_aln.aln_name;
+		this->aln_read=_aln.aln_read;
+		for (int i=0; i<_aln.aln_read_qual.size(); i++)
+			this->aln_read_qual.push_back(_aln.aln_read_qual[i]);
+		this->aln_genome=_aln.aln_genome;
+		this->aln_cigar=_aln.aln_cigar;
+		this->aln_qual=_aln.aln_qual;
+		return *this;
+	}
+	/**
+	 * Default constructor
+	 */
+	BamAlign(){ ; }
+	/**
+	 * Copy constructor
+	 * @param _aln
+	 */
+	BamAlign(const BamAlign& _aln){
+		this->aln_name=_aln.aln_name;
+		this->aln_read=_aln.aln_read;
+		for (int i=0; i<_aln.aln_read_qual.size(); i++)
+			this->aln_read_qual.push_back(_aln.aln_read_qual[i]);
+		this->aln_genome=_aln.aln_genome;
+		this->aln_cigar=_aln.aln_cigar;
+		this->aln_qual=_aln.aln_qual;
+	}
+	/**
+	 * Default deconstructor
+	 */
+	~BamAlign(){ ; }
+};
+
+/**
+ * Data structure for a BAM file
+ */
 class BamFile
 {
 
@@ -108,6 +156,14 @@ class BamFile
         }
 
 
+
+//-------------------------------------------------------------------------------------------------
+        /**
+         * To randomly retrieve alignments of 'number' in the specified 'region'.
+         * @param region
+         * @param number
+         */
+         void bam_random_retrieve(string region, int number);
 
 
 //-------------------------------------------------------------------------------------------------
