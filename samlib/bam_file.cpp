@@ -1,6 +1,10 @@
 #include "bam_file.h"
 #include "sam_header.h"
+#include <stdio.h>
 #include <iostream>
+#include <map>
+#include <algorithm>
+#include <boost/random.hpp>
 using namespace std;
 
 BamFile::BamFile()
@@ -12,6 +16,7 @@ BamFile::BamFile()
 BamFile::~BamFile()
 {
     //dtor
+    if (bam_file_idx) bam_index_destroy(bam_file_idx);
     if (bam_file_ptr) samclose(bam_file_ptr);
 }
 
@@ -144,7 +149,256 @@ void BamFile::bam_header_SQ(){
  }
 
 
+ /**
+  * Utilities for bam_random_retrieve
+  */
+ // temporary data structure for bam_random_retrieve
+ typedef struct{
+     int g_id, g_beg, g_end;  // the beginning position and ending position on genome
+     samfile_t *bam_file_ptr;   // the pointer to the given bam file
 
+     // items to store the read information when the region is scanned
+     map<string, int> tmp_read_mark;    // mark a read as scanned and jump over next time
+     vector<string> *tmp_read_pool=0;      // store the reads within the region
+
+     // items to store the alignments
+     map<string, int> *tmp_align_idx=0;
+     vector<BamAlign> *tmp_align_pool=0;
+
+     // items to store the genome content
+     int tmp_genome_len;
+     char *tmp_genome_seq;
+     faidx_t *tmp_genome_idx;
+ }bam_random_retrieve_data_ptr;
+
+ // temporary function for random_random_retrieve to fetch the alignments from the given bam file
+static int bam_random_retrieve_fetch_func(const bam1_t *b, void *data){
+    bam_plbuf_t *buf=(bam_plbuf_t*) data;
+    bam_plbuf_push(b, buf);
+    return 0;
+}
+
+// temporary function for bam_random_retrieve to store an read indentity into a list
+static int bam_random_retrieve_read_func(uint32_t tid, uint32_t pos, int n, const bam_pileup1_t *pl, void *data){
+    // temporary data information
+    bam_random_retrieve_data_ptr *tmp_data=(bam_random_retrieve_data_ptr*)data;
+
+    // loop over piled-up reads
+    for (int i=0; i<n; i++){
+        // current alignment
+        bam_pileup1_t aln1=pl[i];
+        // the leftmost and rightmost position of current alignment on genome
+        int aln1_lpos=aln1.b->core.pos;
+        uint32_t *aln1_cigar=bam1_cigar(aln1.b);
+        int aln1_rpos=bam_calend(&aln1.b->core, aln1_cigar);
+        // check the validation on the genomic position
+        if (aln1_lpos<tmp_data->g_beg || aln1_rpos>tmp_data->g_end) continue;
+        // the name of current alignment
+        string aln1_name=bam1_qname(aln1.b);
+        // check whether the current alignment has been visited
+        if (tmp_data->tmp_read_mark.count(aln1_name)==0){
+            tmp_data->tmp_read_pool->push_back(aln1_name);
+            tmp_data->tmp_read_mark[aln1_name]=1;
+        }
+    }
+
+    return 0;
+}
+
+// temporary function for bam_random_retrieve to store an alignment into a list
+static int bam_random_retrieve_align_func(uint32_t tid, uint32_t pos, int n, const bam_pileup1_t *pl, void *data){
+    // temporary data information
+    bam_random_retrieve_data_ptr *tmp_data=(bam_random_retrieve_data_ptr*)data;
+
+    // loop over piled-up reads
+    for (int i=0; i<n; i++){
+        // current alignment
+        bam_pileup1_t aln1=pl[i];
+        // the name of current alignment
+        string aln1_name=bam1_qname(aln1.b);
+        // if current alignment is sampled, then update the record of current alignment
+        if (tmp_data->tmp_align_idx->count(aln1_name)>0){
+            int idx=(*tmp_data->tmp_align_idx)[aln1_name];
+            // record item for current alignment
+            BamAlign item=(*tmp_data->tmp_align_pool)[idx];
+            // data structure for local alignment
+            string local_align_read="";
+            string local_align_qual="";
+            string local_align_cigar="";
+            string local_align_genome="";
+
+            // data structure for the base quality scores of current alignment
+            uint8_t *aln1_qual=bam1_qual(aln1.b);
+
+            // About the definition and operation of CIGAR, refer to Samtools/bam.h for details.
+            uint32_t *aln1_cigar=bam1_cigar(aln1.b);
+            int aln1_cigar_n=aln1.b->core.n_cigar;
+
+            // collect the information of the soft-clipped head
+            if (aln1.is_head==1 && bam_cigar_opchr(aln1_cigar[0])=='S'){
+                // TODO: pack the soft-clipped head sequence
+                // pack read information
+                int aln1_head_len=bam_cigar_oplen(aln1_cigar[0]);
+                for (int j=aln1.qpos-aln1_head_len; j<aln1.qpos; j++){
+                    local_align_read+=bam_nt16_rev_table[bam1_seqi(bam1_seq(aln1.b), j)];
+                    local_align_qual+=(char)(aln1_qual[j]+33);
+                }
+                // pack genome information
+                int tmp_genome_len;
+                char *tmp_genome_data=faidx_fetch_seq(tmp_data->tmp_genome_idx, tmp_data->bam_file_ptr->header->target_name[tmp_data->g_id],
+                                                      pos-aln1_head_len, pos-1, &tmp_genome_len);
+                for (int j=0; j<tmp_genome_len; j++){
+                    local_align_genome+=tmp_genome_data[j];
+                }
+                // pack alignment information
+                for (int j=0; j<aln1_head_len; j++){
+                    local_align_cigar+="S";
+                }
+            }
+
+            // collect the information of current local alignment
+            if (aln1.indel>=0){ // here is not deletion
+                // HERE is match or mismatch
+                // package read content
+                local_align_read+=bam_nt16_rev_table[bam1_seqi(bam1_seq(aln1.b),aln1.qpos)];
+                local_align_qual+=(char)(aln1_qual[aln1.qpos]+33);
+                // package genome content
+                local_align_genome+=tmp_data->tmp_genome_seq[pos-tmp_data->g_beg];
+                // package alignment content
+                local_align_cigar+="M";
+
+                // HERE has insertion
+                if (aln1.indel>0){
+                    for (int j=1; j<aln1.indel; j++){
+                        // package read content
+                        local_align_read+=bam_nt16_rev_table[bam1_seqi(bam1_seq(aln1.b),aln1.qpos+j)];
+                        local_align_qual+=(char)(aln1_qual[aln1.qpos+j]+33);
+                        // package genome content
+                        local_align_genome+="-";
+                        // package alignment content
+                        local_align_cigar+="M";
+                    }
+                }
+            }else{  // here is deletion
+                // package read content
+                local_align_read+="-";
+                local_align_qual+="!";   // "!" is 33 in ascii-table, refer to http://en.wikipedia.org/wiki/ASCII
+                // package genome content
+                local_align_genome+=tmp_data->tmp_genome_seq[pos-tmp_data->g_beg];
+                // package alignment content
+                local_align_cigar+="D";
+            }
+
+            // collect the information of the soft-clipped tail
+            if (aln1.is_tail==1 && bam_cigar_opchr(aln1_cigar[aln1_cigar_n-1])=='S'){
+                // TODO: pack the soft-clipped tail sequence
+                // pack read information
+                int aln1_tail_len=bam_cigar_oplen(aln1_cigar[aln1_cigar_n-1]);
+                for (int j=0; j<aln1_tail_len; j++){
+                    local_align_read+=bam_nt16_rev_table[bam1_seqi(bam1_seq(aln1.b), aln1.qpos+j+1)];
+                    local_align_qual+=(char)(aln1_qual[aln1.qpos+j+1]+33);
+                }
+                // pack genome information
+                int tmp_genome_len;
+                char *tmp_genome_data=faidx_fetch_seq(tmp_data->tmp_genome_idx, tmp_data->bam_file_ptr->header->target_name[tmp_data->g_id],
+                                                      pos+1, pos+aln1_tail_len, &tmp_genome_len);
+                for (int j=0; j<aln1_tail_len; j++){
+                    local_align_genome+=tmp_genome_data[j];
+                }
+                // pack alignment information
+                for (int j=0; j<aln1_tail_len; j++){
+                    local_align_cigar+="S";
+                }
+            }
+
+            // update the global item
+            item.aln_read+=local_align_read;
+            item.aln_read_qual+=local_align_qual;
+            item.aln_genome+=local_align_genome;
+            item.aln_cigar+=local_align_cigar;
+            // update the mapping quality of local alignment
+            if (item.aln_qual<0) {
+                item.aln_qual=aln1.b->core.qual;
+                if (aln1.b->core.flag & BAM_FREVERSE){
+                    item.aln_strand="-";
+                }else{
+                    item.aln_strand="+";
+                }
+            }
+
+            (*tmp_data->tmp_align_pool)[idx]=item;
+        }
+    }
+
+    return 0;
+}
+
+// temporary function to generate random number
+int bam_random_retrieve_random_generator(int i){
+    boost::mt19937_64 no_state;
+    boost::uniform_int<> rng(0, i-1);
+    return rng(no_state);
+}
+
+ /**
+ * @brief BamFile::bam_random_retrieve
+ *             To randomly retrieve the alignments up to number in the specified region
+ * @param region
+ * @param number
+ */
+void BamFile::bam_random_retrieve(string region, int number){
+    // TODO: add control to handle errors, e.g. user does not give the genome file, etc.
+
+	vector<string> read_pool;		// all reads within region
+	vector<BamAlign> align_pool;	// the alignment information of sampled reads
+    map<string, int> align_idx;         // the index of an alignment in the list
+
+    // temporary data item for the callback functions
+    bam_random_retrieve_data_ptr tmp_data;
+    tmp_data.bam_file_ptr=this->bam_file_ptr;
+    tmp_data.tmp_read_pool=&read_pool;
+
+    // temporary buffer for bam fetch and pileup
+    bam_plbuf_t *tmp_buf;
+
+    // parse the region into items: g_id (Genome ID), g_beg (The Begion Position on Genome), g_end (The Ending Position on Genome)
+    // NOTE: the user-given region starts from 1, while the Samtools API define the region as the beginning is 0.
+    bam_parse_region(this->bam_file_ptr->header, region.c_str(), &tmp_data.g_id, &tmp_data.g_beg, &tmp_data.g_end);
+
+    // #1 collect reads in the region
+    tmp_buf=bam_plbuf_init(bam_random_retrieve_read_func, &tmp_data);
+    bam_fetch(this->bam_file_ptr->x.bam, this->bam_file_idx, tmp_data.g_id, tmp_data.g_beg, tmp_data.g_end, tmp_buf, bam_random_retrieve_fetch_func);
+    bam_plbuf_push(0, tmp_buf);
+
+	// #2 randoly generate sample from read_pool
+    random_shuffle(read_pool.begin(), read_pool.end(), bam_random_retrieve_random_generator);
+    int sample_size=(number<read_pool.size())?number:read_pool.size();
+    for (int i=0; i<sample_size; i++){
+        BamAlign aln1;
+        aln1.aln_name=read_pool[i];
+        align_pool.push_back(aln1);
+        align_idx[aln1.aln_name]=i;
+    }
+
+	// #3 output sampled alignments
+    tmp_data.tmp_align_idx=&align_idx;
+    tmp_data.tmp_align_pool=&align_pool;
+    // load genome sequencing
+    tmp_data.tmp_genome_idx=genome_idx;
+    tmp_data.tmp_genome_seq=faidx_fetch_seq(genome_idx, bam_file_ptr->header->target_name[tmp_data.g_id], tmp_data.g_beg, tmp_data.g_end, &tmp_data.tmp_genome_len);
+    // re-initialize the buffer and re-do pileup
+    tmp_buf=bam_plbuf_init(bam_random_retrieve_align_func, &tmp_data);
+    bam_fetch(this->bam_file_ptr->x.bam, this->bam_file_idx, tmp_data.g_id, tmp_data.g_beg, tmp_data.g_end, tmp_buf, bam_random_retrieve_fetch_func);
+    bam_plbuf_push(0, tmp_buf);
+    // output the randomly sampled alignments
+    for (int i=0; i<align_pool.size(); i++){
+        BamAlign item=align_pool[i];
+        item.print();
+    }
+
+    // #4 destroy the pileup buffer
+    bam_plbuf_destroy(tmp_buf);
+}
 
 /** \brief To print out the generic information of BAM file
  *

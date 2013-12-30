@@ -5,6 +5,7 @@
 #include <iostream>
 #include <boost/filesystem.hpp>
 #include "sam.h"
+#include "faidx.h"
 using namespace std;
 using namespace boost::filesystem;
 
@@ -13,44 +14,63 @@ using namespace boost::filesystem;
  * This class is for single-end read.
  */
 class BamAlign{
-	string aln_name;			// read id
-	string aln_read;			// read symbols
-	vector<int> aln_read_qual;	// read quality scores
-	string aln_genome;			// reference symbols
-	string aln_cigar;			// alignment types
-	int aln_qual;				// alignment quality score
+	public:
+		string aln_name;			// read id
+		string aln_read;			// read symbols
+        string aln_read_qual;	    // read quality scores
+		string aln_genome;			// reference symbols
+		string aln_cigar;			// alignment types
+		int aln_qual;				// alignment quality score
+        string aln_strand;          // alignment direction
 
-	BamAlign& operator=(const BamAlign& _aln){
-		this->aln_name=_aln.aln_name;
-		this->aln_read=_aln.aln_read;
-		for (int i=0; i<_aln.aln_read_qual.size(); i++)
-			this->aln_read_qual.push_back(_aln.aln_read_qual[i]);
-		this->aln_genome=_aln.aln_genome;
-		this->aln_cigar=_aln.aln_cigar;
-		this->aln_qual=_aln.aln_qual;
-		return *this;
-	}
-	/**
-	 * Default constructor
-	 */
-	BamAlign(){ ; }
-	/**
-	 * Copy constructor
-	 * @param _aln
-	 */
-	BamAlign(const BamAlign& _aln){
-		this->aln_name=_aln.aln_name;
-		this->aln_read=_aln.aln_read;
-		for (int i=0; i<_aln.aln_read_qual.size(); i++)
-			this->aln_read_qual.push_back(_aln.aln_read_qual[i]);
-		this->aln_genome=_aln.aln_genome;
-		this->aln_cigar=_aln.aln_cigar;
-		this->aln_qual=_aln.aln_qual;
-	}
-	/**
-	 * Default deconstructor
-	 */
-	~BamAlign(){ ; }
+	public:
+		BamAlign& operator=(const BamAlign& _aln){
+			this->aln_name=_aln.aln_name;
+			this->aln_read=_aln.aln_read;
+			this->aln_read_qual=_aln.aln_read_qual;
+			this->aln_genome=_aln.aln_genome;
+			this->aln_cigar=_aln.aln_cigar;
+			this->aln_qual=_aln.aln_qual;
+            this->aln_strand=_aln.aln_strand;
+			return *this;
+		}
+		void print(){
+            cout<<"> "<<this->aln_name<<" mq:"<<this->aln_qual<<" strand:"<<this->aln_strand<<endl
+				<<this->aln_read<<endl
+				<<this->aln_read_qual<<endl
+				<<this->aln_genome<<endl
+				<<this->aln_cigar<<endl;
+		}
+	public:
+		/**
+		 * Default constructor
+		 */
+        BamAlign(){
+            this->aln_name="";
+            this->aln_genome="";
+            this->aln_read="";
+            this->aln_read_qual="";
+            this->aln_cigar="";
+            this->aln_qual=-1;
+            this->aln_strand="";
+        }
+		/**
+		 * Copy constructor
+		 * @param _aln
+		 */
+		BamAlign(const BamAlign& _aln){
+			this->aln_name=_aln.aln_name;
+			this->aln_read=_aln.aln_read;
+			this->aln_read_qual=_aln.aln_read_qual;
+			this->aln_genome=_aln.aln_genome;
+			this->aln_cigar=_aln.aln_cigar;
+			this->aln_qual=_aln.aln_qual;
+            this->aln_strand=_aln.aln_strand;
+		}
+		/**
+		 * Default deconstructor
+		 */
+		virtual ~BamAlign(){ ; }
 };
 
 /**
@@ -133,31 +153,59 @@ class BamFile
 
 //--------------------------------------------------------------------------------------------------------
 
-    /**< data structures for BAM object */
+    /**< data structures for BAM object */      
     public:
-        /**< the name of BAM file */
+        /**
+         * @brief bam_file_name
+         */
         string bam_file_name;
-        /**< the pointer to BAM file */
+        /**
+         * @brief bam_file_ptr
+         */
         samfile_t *bam_file_ptr;
-    public:
-        /**< initialize the pointer */
+        /**
+         * @brief bam_file_idx
+         */
+        bam_index_t *bam_file_idx;
+    private:
+        /**
+         * @brief init    initialize the pointer
+         */
         void init() {
+            // set up the content about BAM file
             path bam_file_path(bam_file_name);
             if (!exists(bam_file_path)) {
                 cerr<<bam_file_path<<" does not exist\n";
                 exit(EXIT_FAILURE);
             }
             bam_file_ptr=samopen(bam_file_name.c_str(),"rb",NULL);
+            bam_file_idx=bam_index_load(bam_file_name.c_str());
             bam_header_parser();
+            // set up the content about GENOME file
+            if (!genome_file_name.empty()) genome_idx=fai_load(genome_file_name.c_str());
         }
-        void init(string fn){
-            bam_file_name=fn;
+    public:
+        void init(string bn, string gn){
+            bam_file_name=bn;
+            genome_file_name=gn;
             init();
         }
 
 
 
+    public:
+        /**
+         * @brief genome_file_name
+         */
+        string genome_file_name;
+        /**
+         * @brief genome_idx
+         */
+        faidx_t *genome_idx;
+
+
 //-------------------------------------------------------------------------------------------------
+    public:
         /**
          * To randomly retrieve alignments of 'number' in the specified 'region'.
          * @param region
@@ -181,7 +229,7 @@ class BamFile
     /**< constructor and destructor */
     public:
         BamFile();
-        BamFile(string fn):bam_file_name(fn){
+        BamFile(string bn, string gn):bam_file_name(bn), genome_file_name(gn){
             init();
         }
         virtual ~BamFile();

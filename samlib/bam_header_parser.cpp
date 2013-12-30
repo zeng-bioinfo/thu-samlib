@@ -9,8 +9,9 @@ using namespace std;
 int main(int argc, char** argv)
 {
 
-    string fn=argv[1];
-    BamFile bamfile(fn);
+    string bn=argv[1];
+    string gn=argv[2];
+    BamFile bamfile(bn, gn);
     bamfile.bam_generic_info();
 
     return 0;
