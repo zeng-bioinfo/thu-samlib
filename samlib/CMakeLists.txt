@@ -1,14 +1,19 @@
 include_directories(${THUSAMLIB_SOURCE_DIR}/samlib)
 link_directories(${THUSAMLIB_BINARY_DIR}/samlib)
 
-#samtools libraries 
+# Samtools libraries
 include_directories(${THUSAMLIB_SOURCE_DIR}/samtools)
 link_directories(${THUSAMLIB_SOURCE_DIR}/samtools)
-#boost libraries
-find_package(Boost REQUIRED COMPONENTS system filesystem random)
+
+# Boost libraries
+find_package(Boost REQUIRED COMPONENTS system filesystem random program_options regex)
 include_directories(${Boost_INCLUDE_DIR})
 add_definitions("-DHAS_BOOST")
 
+# Program Option Layout
+set(PROGRAM_OPTION OptionPrinter.cpp CustomOptionDescription.cpp)
+
+# Executable examples
 set(EXAMPLES bam_header_parser bam_random_retrieve)
 foreach(example ${EXAMPLES})
     add_executable(${example} bam_file.cpp ${example}.cpp)
@@ -20,3 +25,7 @@ endforeach(example)
 #calDepth executable example
 add_executable(calDepth calDepth.cpp)
 target_link_libraries(calDepth bam z pthread) 
+
+# The executable program to extract the alignments from user's BAM file to be the training data.
+add_executable(extract_train_data extract_train_data.cpp bam_file.cpp ${PROGRAM_OPTION})
+target_link_libraries(extract_train_data bam z pthread ${Boost_LIBRARIES})
