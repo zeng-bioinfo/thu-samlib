@@ -35,11 +35,46 @@ class BamAlign{
 			return *this;
 		}
 		void print(){
-            cout<<"> "<<this->aln_name<<" mq:"<<this->aln_qual<<" strand:"<<this->aln_strand<<endl
-				<<this->aln_read<<endl
-				<<this->aln_read_qual<<endl
-				<<this->aln_genome<<endl
-				<<this->aln_cigar<<endl;
+            // positive strand
+            if (this->aln_strand=="+"){
+                cout<<"> "<<this->aln_name<<" mq:"<<this->aln_qual<<" strand:"<<this->aln_strand<<endl
+                    <<this->aln_read<<endl
+                    <<this->aln_read_qual<<endl
+                    <<this->aln_genome<<endl
+                    <<this->aln_cigar<<endl;
+            }else{
+                string tmp_read="";
+                string tmp_read_qual="";
+                string tmp_genome="";
+                string tmp_cigar="";
+                // reverse the read sequence
+                for (int i=this->aln_read.length()-1; i>=0; i--){
+                    if (aln_read[i]=='A') tmp_read+='T';
+                    if (aln_read[i]=='C') tmp_read+='G';
+                    if (aln_read[i]=='G') tmp_read+='C';
+                    if (aln_read[i]=='T') tmp_read+='A';
+                    if (aln_read[i]=='-') tmp_read+='-';
+                    tmp_read_qual+=aln_read_qual[i];
+                }
+                // reverse the genome sequence
+                for (int i=this->aln_genome.length(); i>=0; i--){
+                    if (aln_genome[i]=='A') tmp_genome+='T';
+                    if (aln_genome[i]=='C') tmp_genome+='G';
+                    if (aln_genome[i]=='G') tmp_genome+='C';
+                    if (aln_genome[i]=='T') tmp_genome+='A';
+                    if (aln_genome[i]=='-') tmp_genome+='-';
+                }
+                // reverse the cigar sequence
+                for (int i=this->aln_cigar.length(); i>=0; i--){
+                    tmp_cigar+=aln_cigar[i];
+                }
+                // output
+                cout<<"> "<<this->aln_name<<" mq:"<<this->aln_qual<<" strand:"<<this->aln_strand<<endl
+                    <<tmp_read<<endl
+                    <<tmp_read_qual<<endl
+                    <<tmp_genome<<endl
+                    <<tmp_cigar<<endl;
+            }
 		}
 	public:
 		/**

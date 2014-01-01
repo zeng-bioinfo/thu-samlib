@@ -210,6 +210,8 @@ static int bam_random_retrieve_align_func(uint32_t tid, uint32_t pos, int n, con
     // temporary data information
     bam_random_retrieve_data_ptr *tmp_data=(bam_random_retrieve_data_ptr*)data;
 
+    if (pos<tmp_data->g_beg || pos>tmp_data->g_end) return 0;
+
     // loop over piled-up reads
     for (int i=0; i<n; i++){
         // current alignment
@@ -327,6 +329,16 @@ static int bam_random_retrieve_align_func(uint32_t tid, uint32_t pos, int n, con
             }
 
             (*tmp_data->tmp_align_pool)[idx]=item;
+
+            // debugging
+            if (local_align_read.length()!=local_align_genome.length()){
+                string here;
+                here="debug";
+            }
+            if (local_align_read.length()!=local_align_cigar.length()){
+                string here;
+                here="debug";
+            }
         }
     }
 
