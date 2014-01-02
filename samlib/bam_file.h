@@ -37,7 +37,7 @@ class BamAlign{
 		void print(){
             // positive strand
             if (this->aln_strand=="+"){
-                cout<<"> "<<this->aln_name<<" mq:"<<this->aln_qual<<" strand:"<<this->aln_strand<<endl
+                cout<<"> "<<this->aln_name<<" mq:"<<this->aln_qual<<" strand:"<<this->aln_strand<<" length:"<<this->aln_read.length()<<endl
                     <<this->aln_read<<endl
                     <<this->aln_read_qual<<endl
                     <<this->aln_genome<<endl
@@ -69,7 +69,7 @@ class BamAlign{
                     tmp_cigar+=aln_cigar[i];
                 }
                 // output
-                cout<<"> "<<this->aln_name<<" mq:"<<this->aln_qual<<" strand:"<<this->aln_strand<<endl
+                cout<<"> "<<this->aln_name<<" mq:"<<this->aln_qual<<" strand:"<<" length:"<<this->aln_read.length()<<this->aln_strand<<endl
                     <<tmp_read<<endl
                     <<tmp_read_qual<<endl
                     <<tmp_genome<<endl
