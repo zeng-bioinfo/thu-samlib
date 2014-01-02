@@ -25,18 +25,22 @@ int main(int argc, char** argv)
     std::string region;
     int number=1000;
     int block_size=1000;
+    int map_qual_thresh=10;
+    int aln_length=100;
 
 
     // Define and parse the program options
     namespace po = boost::program_options;
     po::options_description desc("Options");
     desc.add_options()
-      ("bamfile,b", po::value<std::string>(&bam_filename)->required(), "The filename of BAM file")
-      ("genome,g",po::value<std::string>(&genome_filename)->required(), "The filename of genome sequence")
-      ("region,r",po::value<std::string>(&region)->required(), "Region specification, e.g. chr20:1000000-1500000 for an interval, or chr20 for a chromosome")
-      ("number,n",po::value<int>(&number)->required(), "The number of alignments would be extracted out from the specified region")
-      ("block_size,z",po::value<int>(&block_size), "It will divide the region into segments of block_sizes, then extract from each segment evenly")
-      ("help,h", "Print help messages");
+        ("bamfile,b", po::value<std::string>(&bam_filename)->required(), "The filename of BAM file")
+        ("genome,g",po::value<std::string>(&genome_filename)->required(), "The filename of genome sequence")
+        ("region,r",po::value<std::string>(&region)->required(), "Region specification, e.g. chr20:1000000-1500000")
+        ("number,n",po::value<int>(&number), "The number of alignments would be extracted out from the specified region [1000]")
+        ("block_size,z",po::value<int>(&block_size), "It will divide the region into segments of block_sizes, then extract from each segment evenly [1000]")
+        ("map_qual_thres,m",po::value<int>(&map_qual_thresh), "The threshod of the mapping quality score [10]")
+        ("aln_length,l",po::value<int>(&aln_length), "The threshold of the alignment length [100]")
+        ("help,h", "Print help messages");
 
     po::variables_map vm;
 
@@ -93,13 +97,16 @@ int main(int argc, char** argv)
     // sampling
     int i;
     char buffer[1024];
+    BamFilter filter;
+    filter.map_qual_thresh=map_qual_thresh;
+    filter.aln_length=aln_length;
     BamFile bamfile(bam_filename, genome_filename);
     for (i=0; i<block_num-1; i++){
         sprintf(buffer,"%s:%d-%d",g_name.c_str(),g_beg+i*block_size,g_beg+i*block_size+block_size-1);
-        bamfile.bam_random_retrieve(std::string(buffer),block_sample_size);
+        bamfile.bam_random_retrieve(std::string(buffer),block_sample_size,filter);
     }
     sprintf(buffer,"%s:%d-%d",g_name.c_str(),g_beg+i*block_size,g_beg+i*block_size+block_size-1);
-    bamfile.bam_random_retrieve(std::string(buffer),block_sample_size+number%block_num);
+    bamfile.bam_random_retrieve(std::string(buffer),block_sample_size+number%block_num,filter);
 //*/
 
 

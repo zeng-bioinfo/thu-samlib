@@ -10,9 +10,18 @@ using namespace std;
 using namespace boost::filesystem;
 
 /**
- * Data structure for a BAM alignment.
- * This class is for single-end read.
- */
+* The criteria to filter the alignments
+*/
+typedef struct {
+  int map_qual_thresh=10;
+  int base_qual_thresh=10;
+  int aln_length=100;
+}BamFilter;
+
+/**
+* Data structure for a BAM alignment.
+* This class is for single-end read.
+*/
 class BamAlign{
 	public:
 		string aln_name;			// read id
@@ -23,6 +32,12 @@ class BamAlign{
 		int aln_qual;				// alignment quality score
         string aln_strand;          // alignment direction
 
+        // statistics
+        int nM;
+        int nX;
+        int nI;
+        int nD;
+
 	public:
 		BamAlign& operator=(const BamAlign& _aln){
 			this->aln_name=_aln.aln_name;
@@ -32,12 +47,18 @@ class BamAlign{
 			this->aln_cigar=_aln.aln_cigar;
 			this->aln_qual=_aln.aln_qual;
             this->aln_strand=_aln.aln_strand;
+
+            this->nM=_aln.nM;
+            this->nX=_aln.nX;
+            this->nD=_aln.nD;
+            this->nI=_aln.nI;
 			return *this;
 		}
 		void print(){
             // positive strand
             if (this->aln_strand=="+"){
-                cout<<"> "<<this->aln_name<<" mq:"<<this->aln_qual<<" strand:"<<this->aln_strand<<" length:"<<this->aln_read.length()<<endl
+                cout<<"> "<<this->aln_name<<" mq:"<<this->aln_qual<<" strand:"<<this->aln_strand<<" length:"<<this->aln_read.length()
+                    <<" M:"<<this->nM<<" X:"<<this->nX<<" D:"<<this->nD<<" I:"<<this->nI<<endl
                     <<this->aln_read<<endl
                     <<this->aln_read_qual<<endl
                     <<this->aln_genome<<endl
@@ -65,11 +86,10 @@ class BamAlign{
                     if (aln_genome[i]=='-') tmp_genome+='-';
                 }
                 // reverse the cigar sequence
-                for (int i=this->aln_cigar.length(); i>=0; i--){
-                    tmp_cigar+=aln_cigar[i];
-                }
+                tmp_cigar=string(aln_cigar.rbegin(),aln_cigar.rend());
                 // output
-                cout<<"> "<<this->aln_name<<" mq:"<<this->aln_qual<<" strand:"<<" length:"<<this->aln_read.length()<<this->aln_strand<<endl
+                cout<<"> "<<this->aln_name<<" mq:"<<this->aln_qual<<" strand:"<<this->aln_strand<<" length:"<<this->aln_read.length()
+                    <<" M:"<<this->nM<<" X:"<<this->nX<<" D:"<<this->nD<<" I:"<<this->nI<<endl
                     <<tmp_read<<endl
                     <<tmp_read_qual<<endl
                     <<tmp_genome<<endl
@@ -88,6 +108,11 @@ class BamAlign{
             this->aln_cigar="";
             this->aln_qual=-1;
             this->aln_strand="";
+
+            this->nM=0;
+            this->nX=0;
+            this->nD=0;
+            this->nI=0;
         }
 		/**
 		 * Copy constructor
@@ -101,6 +126,11 @@ class BamAlign{
 			this->aln_cigar=_aln.aln_cigar;
 			this->aln_qual=_aln.aln_qual;
             this->aln_strand=_aln.aln_strand;
+
+            this->nM=_aln.nM;
+            this->nX=_aln.nX;
+            this->nD=_aln.nD;
+            this->nI=_aln.nI;
 		}
 		/**
 		 * Default deconstructor
@@ -246,7 +276,7 @@ class BamFile
          * @param region
          * @param number
          */
-         void bam_random_retrieve(string region, int number);
+         void bam_random_retrieve(string region, int number, BamFilter filter);
 
 
 //-------------------------------------------------------------------------------------------------

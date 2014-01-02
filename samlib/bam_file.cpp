@@ -169,6 +169,9 @@ void BamFile::bam_header_SQ(){
      int tmp_genome_len;
      char *tmp_genome_seq;
      faidx_t *tmp_genome_idx;
+
+     // filtration
+     BamFilter *filter;
  }bam_random_retrieve_data_ptr;
 
  // temporary function for random_random_retrieve to fetch the alignments from the given bam file
@@ -193,8 +196,26 @@ static int bam_random_retrieve_read_func(uint32_t tid, uint32_t pos, int n, cons
         int aln1_rpos=bam_calend(&aln1.b->core, aln1_cigar);
         // check the validation on the genomic position
         if (aln1_lpos<tmp_data->g_beg || aln1_rpos>tmp_data->g_end) continue;
+        // check whether it pass samtools filtration
+        if (aln1.b->core.flag & BAM_DEF_MASK) continue;
+        // check whether it is a good mapping
+        if (aln1.b->core.qual<tmp_data->filter->map_qual_thresh) continue;
+        // check whether it is a long alignment
+        int aln1_len=0;
+        uint32_t *cigar=bam1_cigar(aln1.b);
+        for (int i=0; i<aln1.b->core.n_cigar; i++){
+            char op=bam_cigar_opchr(cigar[i]);
+            if (op=='M' || op=='I' || op=='D') {
+                aln1_len+=bam_cigar_oplen(cigar[i]);
+            }
+        }
+        if (aln1_len<tmp_data->filter->aln_length) continue;
         // the name of current alignment
         string aln1_name=bam1_qname(aln1.b);
+        if (aln1.b->core.flag & BAM_FPAIRED) {
+            if (aln1.b->core.flag & BAM_FREAD1) aln1_name+=".1";
+            if (aln1.b->core.flag & BAM_FREAD2) aln1_name+=".2";
+        }
         // check whether the current alignment has been visited
         if (tmp_data->tmp_read_mark.count(aln1_name)==0){
             tmp_data->tmp_read_pool->push_back(aln1_name);
@@ -216,8 +237,14 @@ static int bam_random_retrieve_align_func(uint32_t tid, uint32_t pos, int n, con
     for (int i=0; i<n; i++){
         // current alignment
         bam_pileup1_t aln1=pl[i];
+        // check whether it is a good mapping
+        if (aln1.b->core.qual<tmp_data->filter->map_qual_thresh) continue;
         // the name of current alignment
         string aln1_name=bam1_qname(aln1.b);
+        if (aln1.b->core.flag & BAM_FPAIRED) {
+            if (aln1.b->core.flag & BAM_FREAD1) aln1_name+=".1";
+            if (aln1.b->core.flag & BAM_FREAD2) aln1_name+=".2";
+        }
         // if current alignment is sampled, then update the record of current alignment
         if (tmp_data->tmp_align_idx->count(aln1_name)>0){
             int idx=(*tmp_data->tmp_align_idx)[aln1_name];
@@ -228,6 +255,10 @@ static int bam_random_retrieve_align_func(uint32_t tid, uint32_t pos, int n, con
             string local_align_qual="";
             string local_align_cigar="";
             string local_align_genome="";
+            int local_nM=0;
+            int local_nX=0;
+            int local_nD=0;
+            int local_nI=0;
 
             // data structure for the base quality scores of current alignment
             uint8_t *aln1_qual=bam1_qual(aln1.b);
@@ -249,8 +280,13 @@ static int bam_random_retrieve_align_func(uint32_t tid, uint32_t pos, int n, con
                 int tmp_genome_len;
                 char *tmp_genome_data=faidx_fetch_seq(tmp_data->tmp_genome_idx, tmp_data->bam_file_ptr->header->target_name[tmp_data->g_id],
                                                       pos-aln1_head_len, pos-1, &tmp_genome_len);
-                for (int j=0; j<tmp_genome_len; j++){
-                    local_align_genome+=tmp_genome_data[j];
+                for (int j=0; j<aln1_head_len; j++){
+                    if (pos+j<aln1_head_len) {
+                        local_align_genome+='N';
+                    }
+                    else {
+                        local_align_genome+=tmp_genome_data[j];
+                    }
                 }
                 // pack alignment information
                 for (int j=0; j<aln1_head_len; j++){
@@ -267,7 +303,15 @@ static int bam_random_retrieve_align_func(uint32_t tid, uint32_t pos, int n, con
                 // package genome content
                 local_align_genome+=tmp_data->tmp_genome_seq[pos-tmp_data->g_beg];
                 // package alignment content
-                local_align_cigar+="M";
+                if (tmp_data->tmp_genome_seq[pos-tmp_data->g_beg] == bam_nt16_rev_table[bam1_seqi(bam1_seq(aln1.b),aln1.qpos)]){
+                    local_align_cigar+="M";
+
+                    local_nM+=1;
+                }else{
+                    local_align_cigar+="X";
+
+                    local_nX+=1;
+                }
 
                 // HERE has insertion
                 if (aln1.indel>0){
@@ -278,7 +322,9 @@ static int bam_random_retrieve_align_func(uint32_t tid, uint32_t pos, int n, con
                         // package genome content
                         local_align_genome+="-";
                         // package alignment content
-                        local_align_cigar+="M";
+                        local_align_cigar+="I";
+
+                        local_nI+=1;
                     }
                 }
             }else{  // here is deletion
@@ -289,6 +335,8 @@ static int bam_random_retrieve_align_func(uint32_t tid, uint32_t pos, int n, con
                 local_align_genome+=tmp_data->tmp_genome_seq[pos-tmp_data->g_beg];
                 // package alignment content
                 local_align_cigar+="D";
+
+                local_nD+=1;
             }
 
             // collect the information of the soft-clipped tail
@@ -305,7 +353,8 @@ static int bam_random_retrieve_align_func(uint32_t tid, uint32_t pos, int n, con
                 char *tmp_genome_data=faidx_fetch_seq(tmp_data->tmp_genome_idx, tmp_data->bam_file_ptr->header->target_name[tmp_data->g_id],
                                                       pos+1, pos+aln1_tail_len, &tmp_genome_len);
                 for (int j=0; j<aln1_tail_len; j++){
-                    local_align_genome+=tmp_genome_data[j];
+                    if (1+j>tmp_genome_len) local_align_genome+='N';
+                    else local_align_genome+=tmp_genome_data[j];
                 }
                 // pack alignment information
                 for (int j=0; j<aln1_tail_len; j++){
@@ -318,6 +367,11 @@ static int bam_random_retrieve_align_func(uint32_t tid, uint32_t pos, int n, con
             item.aln_read_qual+=local_align_qual;
             item.aln_genome+=local_align_genome;
             item.aln_cigar+=local_align_cigar;
+
+            item.nM+=local_nM;
+            item.nX+=local_nX;
+            item.nD+=local_nD;
+            item.nI+=local_nI;
             // update the mapping quality of local alignment
             if (item.aln_qual<0) {
                 item.aln_qual=aln1.b->core.qual;
@@ -329,16 +383,6 @@ static int bam_random_retrieve_align_func(uint32_t tid, uint32_t pos, int n, con
             }
 
             (*tmp_data->tmp_align_pool)[idx]=item;
-
-            // debugging
-            if (local_align_read.length()!=local_align_genome.length()){
-                string here;
-                here="debug";
-            }
-            if (local_align_read.length()!=local_align_cigar.length()){
-                string here;
-                here="debug";
-            }
         }
     }
 
@@ -358,17 +402,18 @@ int bam_random_retrieve_random_generator(int i){
  * @param region
  * @param number
  */
-void BamFile::bam_random_retrieve(string region, int number){
+void BamFile::bam_random_retrieve(string region, int number, BamFilter filter){
     // TODO: add control to handle errors, e.g. user does not give the genome file, etc.
 
-	vector<string> read_pool;		// all reads within region
-	vector<BamAlign> align_pool;	// the alignment information of sampled reads
+    vector<string> read_pool;		// all reads within region
+    vector<BamAlign> align_pool;	// the alignment information of sampled reads
     map<string, int> align_idx;         // the index of an alignment in the list
 
     // temporary data item for the callback functions
     bam_random_retrieve_data_ptr tmp_data;
     tmp_data.bam_file_ptr=this->bam_file_ptr;
     tmp_data.tmp_read_pool=&read_pool;
+    tmp_data.filter=&filter;
 
     // temporary buffer for bam fetch and pileup
     bam_plbuf_t *tmp_buf;
@@ -382,7 +427,7 @@ void BamFile::bam_random_retrieve(string region, int number){
     bam_fetch(this->bam_file_ptr->x.bam, this->bam_file_idx, tmp_data.g_id, tmp_data.g_beg, tmp_data.g_end, tmp_buf, bam_random_retrieve_fetch_func);
     bam_plbuf_push(0, tmp_buf);
 
-	// #2 randoly generate sample from read_pool
+    // #2 randoly generate sample from read_pool
     random_shuffle(read_pool.begin(), read_pool.end(), bam_random_retrieve_random_generator);
     int sample_size=(number<read_pool.size())?number:read_pool.size();
     for (int i=0; i<sample_size; i++){
@@ -392,7 +437,7 @@ void BamFile::bam_random_retrieve(string region, int number){
         align_idx[aln1.aln_name]=i;
     }
 
-	// #3 output sampled alignments
+    // #3 output sampled alignments
     tmp_data.tmp_align_idx=&align_idx;
     tmp_data.tmp_align_pool=&align_pool;
     // load genome sequencing
