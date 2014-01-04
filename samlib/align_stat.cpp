@@ -4,6 +4,7 @@
 #include <boost/filesystem.hpp>
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -18,6 +19,7 @@ int main(int argc, char **argv){
     {
       std::string appName = boost::filesystem::basename(argv[0]);
       std::string filename,mode="nucleotide";
+      std::string outfile;
       int cycles=1;
 
 
@@ -26,6 +28,7 @@ int main(int argc, char **argv){
       po::options_description desc("Options");
       desc.add_options()
           ("filename,f", po::value<std::string>(&filename)->required(), "The filename of the alignments")
+              ("output,o", po::value<std::string>(&outfile), "The filename of the output")
           ("mode,m", po::value<std::string>(&mode), "Valid option values: nucleotide or homopolymer [nucleotide]")
           ("cycles,c",po::value<int>(&cycles), "The number of virtual sequencing cycles [1]")
           ("help,h", "Print help messages");
@@ -75,18 +78,23 @@ int main(int argc, char **argv){
                                                  desc);
         return ERROR_IN_COMMAND_LINE;
       }
-      catch (boost::program_options::validation_error& e){
-          std::cerr << "ERROR: " << e.what() << std::endl << std::endl;
-          rad::OptionPrinter::printStandardAppDesc(appName,
-                                                   std::cout,
-                                                   desc);
-          return ERROR_IN_COMMAND_LINE;
-      }
+//      catch (boost::program_options::validation_error& e){
+//          std::cerr << "ERROR: " << e.what() << std::endl << std::endl;
+//          rad::OptionPrinter::printStandardAppDesc(appName,
+//                                                   std::cout,
+//                                                   desc);
+//          return ERROR_IN_COMMAND_LINE;
+//      }
 
       // do the thing
       if (mode=="nucleotide"){  // nucleotide space
         NucleotideAlignmentPool align_pool;
         align_pool.open(filename);
+        if(vm.count("output")){
+            align_pool.statistics(outfile, cycles);
+        }else{
+            align_pool.statistics(cycles);
+        }
       }else{
 
       }

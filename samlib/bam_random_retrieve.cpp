@@ -12,8 +12,10 @@ int main(int argc, char** argv){
     BamFile bamfile(bam_filename, genome_filename);
     // genomic region
     string region="chr20:20000000-20000500";
+    // filtration
+    BamFilter filter;
     // retrieve alignments within the region
-    bamfile.bam_random_retrieve(region, 10);
+    bamfile.bam_random_retrieve(region, 10, filter);
 
     return 0;
 }

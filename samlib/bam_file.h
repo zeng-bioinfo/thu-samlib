@@ -83,6 +83,17 @@ class BamAlign{
                     if (aln_genome[i]=='C') tmp_genome+='G';
                     if (aln_genome[i]=='G') tmp_genome+='C';
                     if (aln_genome[i]=='T') tmp_genome+='A';
+                    if (aln_genome[i]=='W') tmp_genome+='W';
+                    if (aln_genome[i]=='S') tmp_genome+='S';
+                    if (aln_genome[i]=='M') tmp_genome+='K';
+                    if (aln_genome[i]=='K') tmp_genome+='M';
+                    if (aln_genome[i]=='R') tmp_genome+='Y';
+                    if (aln_genome[i]=='Y') tmp_genome+='R';
+                    if (aln_genome[i]=='B') tmp_genome+='V';
+                    if (aln_genome[i]=='D') tmp_genome+='H';
+                    if (aln_genome[i]=='H') tmp_genome+='D';
+                    if (aln_genome[i]=='V') tmp_genome+='B';
+                    if (aln_genome[i]=='N') tmp_genome+='N';
                     if (aln_genome[i]=='-') tmp_genome+='-';
                 }
                 // reverse the cigar sequence

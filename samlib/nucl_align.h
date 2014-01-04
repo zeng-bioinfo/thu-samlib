@@ -14,11 +14,19 @@ namespace NucleotideSpace {
     /**
     * @brief The Nucleotide enum
     */
-    enum Nucleotide{A,C,G,T,S};
+    enum Nucleotide{A,C,G,T,I,U,W,S,M,K,R,Y,B,D,H,V,N};
     /**
      * @brief The Metrics enum
      */
     enum Metrics{NucleotideSize=5,QualityScoreMax=60};
+
+    /**
+     * @brief index
+     * @param c
+     * @return
+     */
+    int index(char c);
+    string symbol(Nucleotide nucl);
 }
 
 /**
@@ -49,6 +57,11 @@ class NucleotideAlignmentStat{
 
     public:
         NucleotideAlignmentStat& operator=(const NucleotideAlignmentStat& _align_stat);
+        NucleotideAlignmentStat& operator+=(const NucleotideAlignmentStat& _align_stat);
+
+    public:
+        void print();
+        void print(ofstream& ofs);
 
     public:
         NucleotideAlignmentStat();  // default constructor
@@ -85,17 +98,6 @@ class NucleotideAlignment
     public:
         /**
          * @brief statistics
-         *        Print out the statistics of the alignment
-         */
-        void statistics();
-        /**
-         * @brief statistics
-         *        Get the statistics of the alignment, ignore the sequencing cycle
-         * @param stat
-         */
-        void statistics(NucleotideAlignmentStat& stat);
-        /**
-         * @brief statistics
          *        Get the statistics of the alignment, consider the sequencing cycle
          * @param stat
          * @param cycles
@@ -119,6 +121,25 @@ class NucleotideAlignmentPool{
     public:
         vector<NucleotideAlignment> align_pool;
         NucleotideAlignmentStat align_stat;
+
+    public:
+        /**
+         * @brief statistics
+         * @param cycles
+         */
+        void statistics(int cycles);
+        /**
+         * @brief statistics
+         * @param outfile
+         * @param cycles
+         */
+        void statistics(string outfile, int cycles);
+        /**
+         * @brief statistics
+         * @param stat
+         * @param cycles
+         */
+        void statistics(vector<NucleotideAlignmentStat>& stat, int cycles);
 
     public:
         /**
