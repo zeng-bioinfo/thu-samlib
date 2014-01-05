@@ -5,7 +5,7 @@
 #include <algorithm>
 using namespace std;
 
-
+// TODO #1: consider the alignment status?
 
 int NucleotideSpace::index(char c){
     using namespace NucleotideSpace;

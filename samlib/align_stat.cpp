@@ -1,4 +1,5 @@
 #include "nucl_align.h"
+#include "semi_homo_align.h"
 #include "OptionPrinter.h"
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
@@ -28,7 +29,7 @@ int main(int argc, char **argv){
       po::options_description desc("Options");
       desc.add_options()
           ("filename,f", po::value<std::string>(&filename)->required(), "The filename of the alignments")
-              ("output,o", po::value<std::string>(&outfile), "The filename of the output")
+          ("output,o", po::value<std::string>(&outfile), "The filename of the output")
           ("mode,m", po::value<std::string>(&mode), "Valid option values: nucleotide or homopolymer [nucleotide]")
           ("cycles,c",po::value<int>(&cycles), "The number of virtual sequencing cycles [1]")
           ("help,h", "Print help messages");
@@ -53,8 +54,8 @@ int main(int argc, char **argv){
 
         // --mode option
         if (vm.count("mode")){
-            if (mode!="nucleotide" || mode!="homopolymer"){
-                throw po::validation_error(po::validation_error::invalid_option_value, "mode");
+            if (mode!="nucleotide" && mode!="homopolymer"){
+                throw po::validation_error(po::validation_error::invalid_option_value, string("mode:"+mode).c_str());
             }
         }
 
@@ -96,7 +97,9 @@ int main(int argc, char **argv){
             align_pool.statistics(cycles);
         }
       }else{
-
+        SemiHomopolymerAlignmentPool align_pool;
+        align_pool.open(filename);
+        align_pool.print();
       }
 
 
