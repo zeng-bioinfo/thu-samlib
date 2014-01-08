@@ -1,12 +1,28 @@
+// TODO List
+// [1]  Calculate the statistics depending on the alignment status
+// [2]  Calculate the statistics depending on the read strand           [Done]
+// [3]  Calculate the higher order markov statistics
+// ...
+
 #ifndef SEMIHOMOPOLYMERALIGNMENT_H
 #define SEMIHOMOPOLYMERALIGNMENT_H
 
 #include "nucl_align.h"
 #include <string>
 #include <vector>
+using namespace std;
 
-namespace SemiHomopolymerSpace{
-    using namespace std;
+namespace HomopolymerSpace{
+    const int HomopolymerSizeMax=100;
+    using namespace NucleotideSpace;
+    const int ALPHABITSIZE=3;
+    const int BETABITSIZE=2;
+    const int LENGTHBITSIZE=7;
+    const int QUALITYBITSIZE=6;
+    const int STRANDBITSIZE=1;
+}
+
+namespace SemiHomopolymerAlignmentSpace{
     /**
      * @brief The Query struct
      */
@@ -57,6 +73,9 @@ namespace SemiHomopolymerSpace{
             len+=1;
         }
     };
+    /**
+     * @brief The Status struct
+     */
     struct Status{                  // Status is the status sequence
         vector<string> status;
         int len;
@@ -76,11 +95,117 @@ namespace SemiHomopolymerSpace{
         }
     };
 }
+using namespace SemiHomopolymerAlignmentSpace;
+
+/**
+ * @brief The SemiHomopolymerAlignmentStat class
+ */
+class SemiHomopolymerAlignmentStat
+{
+    // TODO: consider the alignment status
+    // TODO: higher order markov model
+
+    public:
+        vector<int> base_call_table;    // frequency( beta | alpha,l )
+        vector<int> qual_call_table;    // frequency( quality | alpha,l )
+        vector<int> len_call_table;     // frequency( k | alpha,l )
+
+    public:
+        /**
+         * @brief operator =
+         * @param another
+         * @return
+         */
+        SemiHomopolymerAlignmentStat& operator=(const SemiHomopolymerAlignmentStat& another);
+        /**
+         * @brief operator +=
+         * @param another
+         * @return
+         */
+        SemiHomopolymerAlignmentStat& operator+=(const SemiHomopolymerAlignmentStat& another);
+
+    public:
+        /**
+         * @brief bc_incr1
+         *        increase an element of base-call table by one
+         * @param alpha
+         * @param ell
+         * @param beta
+         */
+        void bc_incr1(int strand, char alpha, int ell, char beta);
+        /**
+         * @brief qc_incr1
+         *        increase an element of quality-score-call table by one
+         * @param alpha
+         * @param ell
+         * @param qual
+         */
+        void qc_incr1(int strand, char alpha, int ell, int qual);
+        /**
+         * @brief lc_incr1
+         *        increase an element of length-call table by one
+         * @param alpha
+         * @param ell
+         * @param kappa
+         */
+        void lc_incr1(int strand, char alpha, int ell, int kappa);
+
+        /**
+         * @brief bc_elem1
+         * @param alpha
+         * @param ell
+         * @param beta
+         * @return
+         */
+        int bc_elem1(int strand, char alpha, int ell, char beta);
+        /**
+         * @brief qc_elem1
+         * @param alpha
+         * @param ell
+         * @param qual
+         * @return
+         */
+        int qc_elem1(int strand, char alpha, int ell, int qual);
+        /**
+         * @brief lc_elem1
+         * @param alpha
+         * @param ell
+         * @param kappa
+         * @return
+         */
+        int lc_elem1(int strand, char alpha, int ell, int kappa);
+
+    public:
+        /**
+         * @brief print
+         */
+        void print();
+        /**
+         * @brief print
+         * @param filename
+         */
+        void print(string filename);
+
+    // constructor and destructor
+    public:
+        /**
+        * @brief SemiHomopolymerAlignmentStat
+        */
+        SemiHomopolymerAlignmentStat();
+        /**
+        * @brief SemiHomopolymerAlignmentStat
+        * @param another
+        */
+        SemiHomopolymerAlignmentStat(const SemiHomopolymerAlignmentStat& another);
+        /**
+        * @brief ~SemiHomopolymerAlignmentStat
+        */
+        virtual ~SemiHomopolymerAlignmentStat();
+};
+
 /**
  * @brief The SemiHomopolymerAlignment class
  */
-using namespace std;
-using namespace SemiHomopolymerSpace;
 class SemiHomopolymerAlignment:public NucleotideAlignment
 {
     public:
@@ -117,6 +242,14 @@ class SemiHomopolymerAlignment:public NucleotideAlignment
          * @brief print
          */
         void print();
+
+    public:
+        /**
+         * @brief statistics
+         * @param stat
+         * @param cycles
+         */
+        void statistics(vector<SemiHomopolymerAlignmentStat>& stat, int cycles);
 
     // constructor & destructor
     public:
@@ -167,6 +300,25 @@ class SemiHomopolymerAlignmentPool{
          * @brief print
          */
         void print();
+
+    public:
+        /**
+         * @brief statistics
+         * @param cycles
+         */
+        void statistics(int cycles);
+        /**
+         * @brief statistics
+         * @param filename
+         * @param cycles
+         */
+        void statistics(string filename, int cycles);
+        /**
+         * @brief statistics
+         * @param stat
+         * @param cycles
+         */
+        void statistics(vector<SemiHomopolymerAlignmentStat>& stat, int cycles);
 
     public:
         /**

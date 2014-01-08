@@ -281,6 +281,7 @@ NucleotideAlignment::NucleotideAlignment(const NucleotideAlignment &_align){
     this->align_name=_align.align_name;
     this->query_seq=_align.query_seq;
     this->query_qual=_align.query_qual;
+    this->query_strand=_align.query_strand;
     this->target_seq=_align.target_seq;
     this->align_status=_align.align_status;
 }
@@ -301,6 +302,7 @@ NucleotideAlignment& NucleotideAlignment::operator =(const NucleotideAlignment& 
     this->align_name=_align.align_name;
     this->query_seq=_align.query_seq;
     this->query_qual=_align.query_qual;
+    this->query_strand=_align.query_strand;
     this->target_seq=_align.target_seq;
     this->align_status=_align.align_status;
 
@@ -469,6 +471,7 @@ void NucleotideAlignmentPool::open(string filename){
     string tmp_name="";
     string tmp_query="";
     string tmp_qual="";
+    int tmp_strand=0;
     string tmp_target="";
     string tmp_status="";
 
@@ -478,6 +481,16 @@ void NucleotideAlignmentPool::open(string filename){
     while(fin.is_open() && fin.good()){
         if (lc%5==0){
             getline(fin,tmp_name);
+            // extract the strand information
+            size_t pos =tmp_name.find("strand:");
+            if (pos!=string::npos){
+                string strand=tmp_name.substr(pos+7,1);
+                if (strand=="+"){
+                    tmp_strand=1;
+                }else{
+                    tmp_strand=0;
+                }
+            }
         }
         if (lc%5==1){
             getline(fin,tmp_query);
@@ -491,18 +504,22 @@ void NucleotideAlignmentPool::open(string filename){
         if (lc%5==4){
             getline(fin,tmp_status);
 
+            // package up an alignment
             NucleotideAlignment tmp_aln;
             tmp_aln.align_name=tmp_name;
             tmp_aln.query_seq=tmp_query;
             tmp_aln.query_qual=tmp_qual;
+            tmp_aln.query_strand=tmp_strand;
             tmp_aln.target_seq=tmp_target;
             tmp_aln.align_status=tmp_status;
             tmp_aln.indel_shift_right();
             align_pool.push_back(tmp_aln);
 
+            // clear everything
             tmp_name="";
             tmp_query="";
             tmp_qual="";
+            tmp_strand=0;
             tmp_target="";
             tmp_status="";
         }

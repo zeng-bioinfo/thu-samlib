@@ -16,16 +16,24 @@ namespace NucleotideSpace {
     */
     enum Nucleotide{A,C,G,T,I,U,W,S,M,K,R,Y,B,D,H,V,N};
     /**
-     * @brief The Metrics enum
+     * @brief NucleotideSize
      */
-    enum Metrics{NucleotideSize=5,QualityScoreMax=60};
-
+    const int NucleotideSize=5;
+    /**
+     * @brief QualityScoreMax
+     */
+    const int QualityScoreMax=60;
     /**
      * @brief index
      * @param c
      * @return
      */
     int index(char c);
+    /**
+     * @brief symbol
+     * @param nucl
+     * @return
+     */
     string symbol(Nucleotide nucl);
 }
 
@@ -77,11 +85,12 @@ class NucleotideAlignment
 {
     // variable member
     public:
-        string align_name;  // alignment id
-        string query_seq;   // nucleotide sequence
-        string query_qual;  // base quality score
-        string target_seq;  // nucleotide sequence
-        string align_status;  // status in every aligned position
+        string align_name;      // alignment id
+        string query_seq;       // nucleotide sequence
+        string query_qual;      // base quality score
+        int    query_strand;    // read strand
+        string target_seq;      // nucleotide sequence
+        string align_status;    // status in every aligned position
 
     // function member
     public:

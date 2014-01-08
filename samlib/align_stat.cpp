@@ -52,15 +52,16 @@ int main(int argc, char **argv){
           return SUCCESS;
         }
 
+
+        po::notify(vm); // throws on error, so do after help in case
+                        // there are any problems
+
         // --mode option
         if (vm.count("mode")){
             if (mode!="nucleotide" && mode!="homopolymer"){
                 throw po::validation_error(po::validation_error::invalid_option_value, string("mode:"+mode).c_str());
             }
         }
-
-        po::notify(vm); // throws on error, so do after help in case
-                        // there are any problems
       }
       catch(boost::program_options::required_option& e)
       {
@@ -99,7 +100,7 @@ int main(int argc, char **argv){
       }else{
         SemiHomopolymerAlignmentPool align_pool;
         align_pool.open(filename);
-        align_pool.print();
+        align_pool.statistics(outfile, cycles);
       }
 
 
