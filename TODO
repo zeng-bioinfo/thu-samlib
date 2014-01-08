@@ -1,0 +1,5 @@
+[1] Genome Utility to count the following statistics on the genome
+    (a) Count overall GC% on the genome
+    (b) Count homopolymer size on the genome
+    (c) Count the first order Markov model of homopolymers on the genome
+    (d) Mark the repeative regions on the genome
