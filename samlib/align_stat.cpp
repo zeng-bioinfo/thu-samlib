@@ -22,6 +22,7 @@ int main(int argc, char **argv){
       std::string filename,mode="nucleotide";
       std::string outfile;
       int cycles=1;
+      bool plt_dot_matrix=false;
 
 
       // Define and parse the program options
@@ -32,6 +33,7 @@ int main(int argc, char **argv){
           ("output,o", po::value<std::string>(&outfile), "The filename of the output")
           ("mode,m", po::value<std::string>(&mode), "Valid option values: nucleotide or homopolymer [nucleotide]")
           ("cycles,c",po::value<int>(&cycles), "The number of virtual sequencing cycles [1]")
+          ("dot_matrix,d","Toggle on the dot-matrix output")
           ("help,h", "Print help messages");
 
       po::variables_map vm;
@@ -80,27 +82,33 @@ int main(int argc, char **argv){
                                                  desc);
         return ERROR_IN_COMMAND_LINE;
       }
-//      catch (boost::program_options::validation_error& e){
-//          std::cerr << "ERROR: " << e.what() << std::endl << std::endl;
-//          rad::OptionPrinter::printStandardAppDesc(appName,
-//                                                   std::cout,
-//                                                   desc);
-//          return ERROR_IN_COMMAND_LINE;
-//      }
+
+      if (vm.count("dot_matrix")){
+          plt_dot_matrix=true;
+      }
 
       // do the thing
-      if (mode=="nucleotide"){  // nucleotide space
-        NucleotideAlignmentPool align_pool;
-        align_pool.open(filename);
-        if(vm.count("output")){
-            align_pool.statistics(outfile, cycles);
-        }else{
-            align_pool.statistics(cycles);
-        }
+      if (!plt_dot_matrix){
+          if (mode=="nucleotide"){  // nucleotide space
+              NucleotideAlignmentPool align_pool;
+              align_pool.open(filename);
+              if(vm.count("output")){
+                  align_pool.statistics(outfile, cycles);
+              }else{
+                  align_pool.statistics(cycles);
+              }
+          }else{                    // homopolymer space
+              SemiHomopolymerAlignmentPool align_pool;
+              align_pool.open(filename);
+              align_pool.statistics(outfile, cycles);
+          }
       }else{
-        SemiHomopolymerAlignmentPool align_pool;
-        align_pool.open(filename);
-        align_pool.statistics(outfile, cycles);
+          NucleotideAlignmentTool dot_matrix_proxy;
+          NucleotideAlignmentPool align_pool;
+          align_pool.open(filename);
+          for (int i=0; i<(align_pool.align_pool.size()); i++){
+              dot_matrix_proxy.print_dot_matrix(align_pool.align_pool[i]);
+          }
       }
 
 

@@ -31,6 +31,6 @@ add_executable(extract_train_data extract_train_data.cpp bam_file.cpp ${PROGRAM_
 target_link_libraries(extract_train_data bam z pthread ${Boost_LIBRARIES})
 
 # The executable program to compute the statistics from alignments
-set(STATSRC nucl_align.cpp semi_homo_align.cpp)
+set(STATSRC nucl_align.cpp nucl_align_tool.cpp semi_homo_align.cpp)
 add_executable(align_stat align_stat.cpp ${STATSRC} ${PROGRAM_OPTION})
 target_link_libraries(align_stat ${Boost_LIBRARIES})

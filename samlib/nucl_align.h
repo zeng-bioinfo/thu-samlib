@@ -160,7 +160,20 @@ class NucleotideAlignmentPool{
 
     public:
         NucleotideAlignmentPool();  // default constructor
-        ~NucleotideAlignmentPool(); // default deconstructor
+        virtual ~NucleotideAlignmentPool(); // default deconstructor
+};
+
+
+class NucleotideAlignmentTool{
+    public:
+        // dot matrix
+        void dot_matrix(NucleotideAlignment &align, vector<int> &dot, int &row, int &col);
+        void print_dot_matrix(NucleotideAlignment &align);
+
+    public:
+        // constructor and destructor
+        NucleotideAlignmentTool();
+        virtual ~NucleotideAlignmentTool();
 };
 
 #endif // NUCL_ALIGN_H
