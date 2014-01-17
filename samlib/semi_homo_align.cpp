@@ -301,6 +301,9 @@ SemiHomopolymerAlignment::SemiHomopolymerAlignment(const SemiHomopolymerAlignmen
     this->query_qual=homo_align.query_qual;
     this->query_strand=homo_align.query_strand;
     this->target_seq=homo_align.target_seq;
+
+    this->raw_query=homo_align.raw_query;
+    this->raw_target=homo_align.raw_target;
 }
 
 /**
@@ -313,6 +316,10 @@ SemiHomopolymerAlignment::SemiHomopolymerAlignment(const NucleotideAlignment &nu
     this->query_qual=nucl_align.query_qual;
     this->query_strand=nucl_align.query_strand;
     this->target_seq=nucl_align.target_seq;
+
+    this->raw_query=nucl_align.raw_query;
+    this->raw_target=nucl_align.raw_target;
+
     this->homopolymerize(nucl_align);
 }
 
@@ -339,6 +346,9 @@ SemiHomopolymerAlignment& SemiHomopolymerAlignment::operator =(const SemiHomopol
     this->query_strand=homo_align.query_strand;
     this->target_seq=homo_align.target_seq;
 
+    this->raw_query=homo_align.raw_query;
+    this->raw_target=homo_align.raw_target;
+
     return *this;
 }
 
@@ -348,6 +358,9 @@ SemiHomopolymerAlignment& SemiHomopolymerAlignment::operator =(const NucleotideA
     this->query_qual=nucl_align.query_qual;
     this->query_strand=nucl_align.query_strand;
     this->target_seq=nucl_align.target_seq;
+
+    this->raw_query=nucl_align.raw_query;
+    this->raw_target=nucl_align.raw_target;
 
     this->homopolymerize(nucl_align);
     return *this;
