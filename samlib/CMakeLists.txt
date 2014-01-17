@@ -5,6 +5,10 @@ link_directories(${THUSAMLIB_BINARY_DIR}/samlib)
 include_directories(${THUSAMLIB_SOURCE_DIR}/samtools)
 link_directories(${THUSAMLIB_SOURCE_DIR}/samtools)
 
+# Compressed suffix tree libraries
+include_directories(${THUSAMLIB_SOURCE_DIR}/cst)
+aux_source_directory(${THUSAMLIB_SOURCE_DIR}/cst CST_SRC)
+
 # Boost libraries
 find_package(Boost REQUIRED COMPONENTS system filesystem random program_options regex)
 include_directories(${Boost_INCLUDE_DIR})
@@ -31,6 +35,6 @@ add_executable(extract_train_data extract_train_data.cpp bam_file.cpp ${PROGRAM_
 target_link_libraries(extract_train_data bam z pthread ${Boost_LIBRARIES})
 
 # The executable program to compute the statistics from alignments
-set(STATSRC nucl_align.cpp nucl_align_tool.cpp semi_homo_align.cpp)
-add_executable(align_stat align_stat.cpp ${STATSRC} ${PROGRAM_OPTION})
+set(STATSRC nucl_align.cpp nucl_align_method.cpp semi_homo_align.cpp)
+add_executable(align_stat align_stat.cpp ${STATSRC} ${PROGRAM_OPTION} ${CST_SRC})
 target_link_libraries(align_stat ${Boost_LIBRARIES})
