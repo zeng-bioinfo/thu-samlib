@@ -92,6 +92,10 @@ class NucleotideAlignment
         string target_seq;      // nucleotide sequence
         string align_status;    // status in every aligned position
 
+    public:
+        string raw_query;       // move out all spaces
+        string raw_target;      // move out all spaces
+
     // function member
     public:
         // overload operator=
@@ -164,16 +168,37 @@ class NucleotideAlignmentPool{
 };
 
 
-class NucleotideAlignmentTool{
+class NucleotideAlignmentMethod{
+    public:
+        /**
+         * @brief The X struct
+         */
+        struct X{
+            int i;
+            int pt;     // starting position on target
+            int pq;     // starting position on query
+            int len;    // exact match segment size
+            X(int _i, int _pt, int _pq, int _len):i(_i),
+                pt(_pt),pq(_pq),len(_len){}
+        };
+
     public:
         // dot matrix
         void dot_matrix(NucleotideAlignment &align, vector<int> &dot, int &row, int &col);
         void print_dot_matrix(NucleotideAlignment &align);
 
     public:
+        // find all maximal pairs
+        void maximal_pairs(const NucleotideAlignment &align, vector<int> &pt, vector<int> &pq, vector<int> &len);
+        // chain together exact match segments
+        void exact_match_segment_chain(vector<X> &ems, vector<int> &si);
+        // find the exact match segment chain
+        void find_exact_match_segment_chain(const NucleotideAlignment &align, int &t0, int &t1, int &q0, int &q1);
+
+    public:
         // constructor and destructor
-        NucleotideAlignmentTool();
-        virtual ~NucleotideAlignmentTool();
+        NucleotideAlignmentMethod();
+        virtual ~NucleotideAlignmentMethod();
 };
 
 #endif // NUCL_ALIGN_H

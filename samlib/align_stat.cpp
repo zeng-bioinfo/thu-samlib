@@ -88,6 +88,7 @@ int main(int argc, char **argv){
       }
 
       // do the thing
+      // 1. calculate the statistics
       if (!plt_dot_matrix){
           if (mode=="nucleotide"){  // nucleotide space
               NucleotideAlignmentPool align_pool;
@@ -102,10 +103,13 @@ int main(int argc, char **argv){
               align_pool.open(filename);
               align_pool.statistics(outfile, cycles);
           }
-      }else{
-          NucleotideAlignmentTool dot_matrix_proxy;
+      }
+      // 2. plot dot matrix
+      else{
+          NucleotideAlignmentMethod dot_matrix_proxy;
           NucleotideAlignmentPool align_pool;
           align_pool.open(filename);
+
           for (int i=0; i<(align_pool.align_pool.size()); i++){
               dot_matrix_proxy.print_dot_matrix(align_pool.align_pool[i]);
           }

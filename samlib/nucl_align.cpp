@@ -284,6 +284,9 @@ NucleotideAlignment::NucleotideAlignment(const NucleotideAlignment &_align){
     this->query_strand=_align.query_strand;
     this->target_seq=_align.target_seq;
     this->align_status=_align.align_status;
+
+    this->raw_query=_align.raw_query;
+    this->raw_target=_align.raw_target;
 }
 
 /**
@@ -305,6 +308,9 @@ NucleotideAlignment& NucleotideAlignment::operator =(const NucleotideAlignment& 
     this->query_strand=_align.query_strand;
     this->target_seq=_align.target_seq;
     this->align_status=_align.align_status;
+
+    this->raw_query=_align.raw_query;
+    this->raw_target=_align.raw_target;
 
     return *this;
 }
@@ -474,6 +480,8 @@ void NucleotideAlignmentPool::open(string filename){
     int tmp_strand=0;
     string tmp_target="";
     string tmp_status="";
+    string tmp_raw_query="";
+    string tmp_raw_target="";
 
     int lc=0;
     ifstream fin(filename.c_str());
@@ -481,6 +489,12 @@ void NucleotideAlignmentPool::open(string filename){
     while(fin.is_open() && fin.good()){
         if (lc%5==0){
             getline(fin,tmp_name);
+
+            // strip newline character
+            if (*tmp_name.rbegin()=='\r'){
+                tmp_name.erase(tmp_name.length()-1);
+            }
+
             // extract the strand information
             size_t pos =tmp_name.find("strand:");
             if (pos!=string::npos){
@@ -494,15 +508,46 @@ void NucleotideAlignmentPool::open(string filename){
         }
         if (lc%5==1){
             getline(fin,tmp_query);
+
+            // strip newline character
+            if (*tmp_query.rbegin()=='\r'){
+                tmp_query.erase(tmp_query.length()-1);
+            }
+
+            for (int t=0; t<(int)tmp_query.length(); t++){
+                if (tmp_query[t]!='-' && tmp_query[t]!='\r'){
+                    tmp_raw_query+=tmp_query[t];
+                }
+            }
         }
         if (lc%5==2){
             getline(fin,tmp_qual);
+
+            // strip newline character
+            if (*tmp_qual.rbegin()=='\r'){
+                tmp_qual.erase(tmp_qual.length()-1);
+            }
         }
         if (lc%5==3){
             getline(fin,tmp_target);
+            // strip newline character
+            if (*tmp_target.rbegin()=='\r'){
+                tmp_target.erase(tmp_target.length()-1);
+            }
+
+            for (int t=0; t<(int)tmp_target.length(); t++){
+                if (tmp_target[t]!='-' && tmp_target[t]!='\r'){
+                    tmp_raw_target+=tmp_target[t];
+                }
+            }
         }
         if (lc%5==4){
             getline(fin,tmp_status);
+
+            // strip newline character
+            if (*tmp_status.rbegin()=='\r'){
+                tmp_status.erase(tmp_status.length()-1);
+            }
 
             // package up an alignment
             NucleotideAlignment tmp_aln;
@@ -512,6 +557,8 @@ void NucleotideAlignmentPool::open(string filename){
             tmp_aln.query_strand=tmp_strand;
             tmp_aln.target_seq=tmp_target;
             tmp_aln.align_status=tmp_status;
+            tmp_aln.raw_query=tmp_raw_query;
+            tmp_aln.raw_target=tmp_raw_target;
             tmp_aln.indel_shift_right();
             align_pool.push_back(tmp_aln);
 
@@ -522,6 +569,17 @@ void NucleotideAlignmentPool::open(string filename){
             tmp_strand=0;
             tmp_target="";
             tmp_status="";
+            tmp_raw_query="";
+            tmp_raw_target="";
+
+            int t0,t1,q0,q1;
+            NucleotideAlignmentMethod alignment_band;
+            alignment_band.find_exact_match_segment_chain(tmp_aln,
+                    t0,t1,q0,q1);
+            cout<<tmp_aln.align_name<<endl;
+            cout<<t0<<" <-> "<<q0<<endl
+                <<t1<<" <-> "<<q1<<endl;
+            cout<<endl;
         }
         lc++;
     }
