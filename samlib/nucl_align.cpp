@@ -576,6 +576,8 @@ void NucleotideAlignmentPool::open(string filename){
             NucleotideAlignmentMethod alignment_band;
             alignment_band.find_exact_match_segment_chain(tmp_aln,
                     t0,t1,q0,q1);
+
+            // debug
             cout<<tmp_aln.align_name<<endl;
             cout<<t0<<" <-> "<<q0<<endl
                 <<t1<<" <-> "<<q1<<endl;

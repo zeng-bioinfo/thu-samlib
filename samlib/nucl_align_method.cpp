@@ -86,16 +86,16 @@ void NucleotideAlignmentMethod::maximal_pairs(const NucleotideAlignment &align, 
     string raw_target=align.raw_target;
 
     // synthesize target and query together
-    uchar *text=new uchar;
-    sprintf((char*)text,"%s$%s",raw_target.c_str(),raw_query.c_str());
-    ulong n=strlen((char*)text);
+    char *text=new char[raw_target.size()+raw_query.size()+1+1];
+    sprintf(text,"%s@%s",raw_target.c_str(),raw_query.c_str());
+    ulong n=strlen(text);
     n++;    // this takes the end symbol 0u as part of the text
 
     // position of symbol $
     ulong splitpos=strlen(raw_target.c_str());
 
     // suffix tree
-    SSTree *sst=new SSTree(text,n);
+    SSTree *sst=new SSTree((uchar*)text,n);
     ulong lastleaf=sst->rightmost(0);
 
 
@@ -122,8 +122,8 @@ void NucleotideAlignmentMethod::maximal_pairs(const NucleotideAlignment &align, 
             int ctp=sst->textpos(i);
             // left character
             int clc;
-            if (ctp>0) clc=(char)text[ctp-1]-'A';
-            else clc='^'-'A';
+            if (ctp>0) clc=(char)text[ctp-1]-'@';
+            else clc='^'-'@';
             // first string
             if (ctp<splitpos){
                 llc[clc*(lastleaf+1)+i]=i;
@@ -219,6 +219,13 @@ void NucleotideAlignmentMethod::maximal_pairs(const NucleotideAlignment &align, 
 
     }
 
+//    // debug
+//    for (int i=0; i<(int)pt.size(); i++){
+//        if (len[i]>=10){
+//            cout<<"("<<pt[i]<<","<<pq[i]<<","<<len[i]<<")"<<endl;
+//        }
+//    }
+
     // release memorey
     delete text;
     delete sst;
@@ -256,10 +263,10 @@ void NucleotideAlignmentMethod::exact_match_segment_chain(vector<X> &ems, vector
     // left-side and right-side
     vector<X> left, right;
     for (int t=0; t<(int)ems.size(); t++){
-        if (ems[t].pt+ems[t].len<=B[0].pt && ems[t].pq+ems[t].len<=B[0].pq){
+        if (ems[t].pt+ems[t].len-1<=B[0].pt && ems[t].pq+ems[t].len-1<=B[0].pq){
             left.push_back(ems[t]);
         }
-        if (ems[t].pt>=B[0].pt+B[0].len && ems[t].pq>=B[0].pq+B[0].len){
+        if (ems[t].pt>=B[0].pt+B[0].len-1 && ems[t].pq>=B[0].pq+B[0].len-1){
             right.push_back(ems[t]);
         }
     }
@@ -304,8 +311,8 @@ void NucleotideAlignmentMethod::find_exact_match_segment_chain(const NucleotideA
     exact_match_segment_chain(ems, si);
 
     t0=ems[si[0]].pt;
-    t1=ems[si[si.size()-1]].pt+ems[si[si.size()-1]].len;
+    t1=ems[si[si.size()-1]].pt+ems[si[si.size()-1]].len-1;
 
     q0=ems[si[0]].pq;
-    q1=ems[si[si.size()-1]].pq+ems[si[si.size()-1]].len;
+    q1=ems[si[si.size()-1]].pq+ems[si[si.size()-1]].len-1;
 }
