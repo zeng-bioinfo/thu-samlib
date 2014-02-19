@@ -10,6 +10,8 @@ include_directories(${THUSAMLIB_SOURCE_DIR}/cst)
 aux_source_directory(${THUSAMLIB_SOURCE_DIR}/cst CST_SRC)
 
 # Boost libraries
+#set(CMAKE_INCLUDE_PATH ${CMAKE_INCLUDE_PATH} /data/software/boost/boost-1.53.0/include)
+#set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} /data/software/boost/boost-1.53.0/lib)
 find_package(Boost REQUIRED COMPONENTS system filesystem random program_options regex)
 include_directories(${Boost_INCLUDE_DIR})
 add_definitions("-DHAS_BOOST")
@@ -38,3 +40,8 @@ target_link_libraries(extract_train_data bam z pthread ${Boost_LIBRARIES})
 set(STATSRC nucl_align.cpp nucl_align_method.cpp semi_homo_align.cpp)
 add_executable(align_stat align_stat.cpp ${STATSRC} ${PROGRAM_OPTION} ${CST_SRC})
 target_link_libraries(align_stat ${Boost_LIBRARIES})
+
+# SeqHMM
+set(ALNSRC nucl_align.cpp nucl_align_method.cpp semi_homo_align.cpp glm.cpp semi_homo_ghmm_order1.cpp)
+add_executable(seqhmm seqhmm.cpp ${ALNSRC} ${PROGRAM_OPTION} ${CST_SRC})
+target_link_libraries(seqhmm ${Boost_LIBRARIES})
