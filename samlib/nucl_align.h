@@ -5,12 +5,15 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <map>
 using namespace std;
 
 /**
  *
  */
 namespace NucleotideSpace {
+    // LOG:
+    // @2014.2.14 use map container to replate index and symbol
     /**
     * @brief The Nucleotide enum
     */
@@ -22,19 +25,31 @@ namespace NucleotideSpace {
     /**
      * @brief QualityScoreMax
      */
-    const int QualityScoreMax=60;
+    const int QualityScoreMax=100;
+    const int QualityScoreSlotSize=10;
+    const int QualityScoreSlot=QualityScoreMax/QualityScoreSlotSize;
+
+//    /**
+//     * @brief index
+//     * @param c
+//     * @return
+//     */
+//    int index(char c);
+//    /**
+//     * @brief symbol
+//     * @param nucl
+//     * @return
+//     */
+//    string symbol(Nucleotide nucl);
+
     /**
-     * @brief index
-     * @param c
-     * @return
+     * @brief nucl2idx
      */
-    int index(char c);
+    extern std::map<char, int> nucl2idx;
     /**
-     * @brief symbol
-     * @param nucl
-     * @return
+     * @brief idx2nucl
      */
-    string symbol(Nucleotide nucl);
+    extern std::map<int, char> idx2nucl;
 }
 
 /**
@@ -63,13 +78,27 @@ class NucleotideAlignmentStat{
          */
         int qual_call_table[NucleotideSpace::NucleotideSize][NucleotideSpace::QualityScoreMax];
 
+        /**
+         * @brief base_qual_cooc_table
+         */
+        int base_qual_cooc_table[NucleotideSpace::NucleotideSize][NucleotideSpace::NucleotideSize][NucleotideSpace::QualityScoreMax];
+
+        /**
+         * @brief gc_base_qual_count_table
+         */
+        int gc_base_qual_count_table[100][NucleotideSpace::NucleotideSize][NucleotideSpace::NucleotideSize][NucleotideSpace::QualityScoreMax];
+
+        int gc_match[100];
+        int gc_mismatch[100];
+        int gc_qual[100][NucleotideSpace::QualityScoreMax];
+
     public:
         NucleotideAlignmentStat& operator=(const NucleotideAlignmentStat& _align_stat);
         NucleotideAlignmentStat& operator+=(const NucleotideAlignmentStat& _align_stat);
 
     public:
-        void print();
-        void print(ofstream& ofs);
+        void print(int c);
+        void print(ofstream& ofs, int c);
 
     public:
         NucleotideAlignmentStat();  // default constructor
@@ -88,12 +117,13 @@ class NucleotideAlignment
         string align_name;      // alignment id
         string query_seq;       // nucleotide sequence
         string query_qual;      // base quality score
-        int    query_strand;    // read strand
+        int    query_strand;    // read strand, 1:+, 0:-
         string target_seq;      // nucleotide sequence
         string align_status;    // status in every aligned position
 
     public:
         string raw_query;       // move out all spaces
+        string raw_quality;     // move out all spaces
         string raw_target;      // move out all spaces
 
     // function member
@@ -194,6 +224,13 @@ class NucleotideAlignmentMethod{
         void exact_match_segment_chain(vector<X> &ems, vector<int> &si);
         // find the exact match segment chain
         void find_exact_match_segment_chain(const NucleotideAlignment &align, int &t0, int &t1, int &q0, int &q1);
+        // find the exact match segment chain
+        void find_exact_match_segment_chain(const string& target, const string& query, int &t0, int &t1, int &q0, int &q1);
+
+    private:
+        static bool larger(const X& a, const X& b){
+            return a.len>b.len;
+        }
 
     public:
         // constructor and destructor

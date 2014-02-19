@@ -3,14 +3,21 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include "SSTree.h"
 using namespace std;
 
+/**
+ * @brief NucleotideAlignmentMethod::NucleotideAlignmentMethod
+ */
 NucleotideAlignmentMethod::NucleotideAlignmentMethod(){
     ;
 }
 
+/**
+ * @brief NucleotideAlignmentMethod::~NucleotideAlignmentMethod
+ */
 NucleotideAlignmentMethod::~NucleotideAlignmentMethod(){
     ;
 }
@@ -107,6 +114,13 @@ void NucleotideAlignmentMethod::maximal_pairs(const NucleotideAlignment &align, 
     int *lln=new int[alpha_size*node_size], *rln=new int[alpha_size*node_size];
     int *llt=new int[alpha_size*node_size], *rlt=new int[alpha_size*node_size];
 
+    // set memory to zero
+    for (int i=0; i<alpha_size*node_size; i++){
+        llc[i]=0; rlc[i]=0;
+        lln[i]=0; rln[i]=0;
+        llt[i]=0; rlt[i]=0;
+    }
+
     // string_depth of nodes
     int *depth=new int[node_size];
 
@@ -139,7 +153,7 @@ void NucleotideAlignmentMethod::maximal_pairs(const NucleotideAlignment &align, 
         }
 
 
-        if (!sst->isleaf(i) && sst->isOpen(i)){
+        if (!sst->isleaf(i) && sst->isOpen(i) && depth[i]>=10){
             int j=sst->firstChild(i);
             for (int x=0; x<alpha_size; x++){
                 llc[x*(lastleaf+1)+i]=llc[x*(lastleaf+1)+j];
@@ -162,11 +176,9 @@ void NucleotideAlignmentMethod::maximal_pairs(const NucleotideAlignment &align, 
                             int lp=sst->textpos(si);
                             for (int v=0,sj=rlc[y*(lastleaf+1)+j]; v<rln[y*(lastleaf+1)+j]; v++,sj=rlc[y*(lastleaf+1)+sj]){
                                 int rp=sst->textpos(sj);
-                                if (depth[i]>=5){
-                                    pt.push_back(lp);
-                                    pq.push_back(rp-splitpos-1);
-                                    len.push_back(depth[i]);
-                                }
+                                pt.push_back(lp);
+                                pq.push_back(rp-splitpos-1);
+                                len.push_back(depth[i]);
                             }
                         }
                         // compute the maximal pairs (right,left)
@@ -174,11 +186,9 @@ void NucleotideAlignmentMethod::maximal_pairs(const NucleotideAlignment &align, 
                             int rp=sst->textpos(si);
                             for (int v=0,sj=llc[y*(lastleaf+1)+j]; v<lln[y*(lastleaf+1)+j]; v++,sj=llc[y*(lastleaf+1)+sj]){
                                 int lp=sst->textpos(sj);
-                                if (depth[i]>=5){
-                                    pt.push_back(lp);
-                                    pq.push_back(rp-splitpos-1);
-                                    len.push_back(depth[i]);
-                                }
+                                pt.push_back(lp);
+                                pq.push_back(rp-splitpos-1);
+                                len.push_back(depth[i]);
                             }
                         }
                     }
@@ -227,15 +237,15 @@ void NucleotideAlignmentMethod::maximal_pairs(const NucleotideAlignment &align, 
 //    }
 
     // release memorey
-    delete text;
+    delete [] text;
     delete sst;
-    delete llc;
-    delete rlc;
-    delete lln;
-    delete rln;
-    delete llt;
-    delete rlt;
-    delete depth;
+    delete [] llc;
+    delete [] rlc;
+    delete [] lln;
+    delete [] rln;
+    delete [] llt;
+    delete [] rlt;
+    delete [] depth;
 }
 
 /**
@@ -246,12 +256,12 @@ void NucleotideAlignmentMethod::maximal_pairs(const NucleotideAlignment &align, 
 void NucleotideAlignmentMethod::exact_match_segment_chain(vector<X> &ems, vector<int> &si){
     if (ems.empty()) return;
 
-    // comparison proxy
-    struct Larger{
-        bool operator()(const X& a, const X& b){
-            return a.len>b.len;
-        }
-    }larger;
+//    // comparison proxy
+//    struct Larger{
+//        bool operator()(const X& a, const X& b){
+//            return a.len>b.len;
+//        }
+//    }larger;
 
     // temporary array
     vector<X> B(ems);
@@ -263,10 +273,12 @@ void NucleotideAlignmentMethod::exact_match_segment_chain(vector<X> &ems, vector
     // left-side and right-side
     vector<X> left, right;
     for (int t=0; t<(int)ems.size(); t++){
-        if (ems[t].pt+ems[t].len-1<=B[0].pt && ems[t].pq+ems[t].len-1<=B[0].pq){
+        if (ems[t].pt<B[0].pt && ems[t].pq<B[0].pq){
+        //if (ems[t].pt+ems[t].len-1<=B[0].pt && ems[t].pq+ems[t].len-1<=B[0].pq){
             left.push_back(ems[t]);
         }
-        if (ems[t].pt>=B[0].pt+B[0].len-1 && ems[t].pq>=B[0].pq+B[0].len-1){
+        if (ems[t].pt+ems[t].len>B[0].pt+B[0].len && ems[t].pq+ems[t].len>B[0].pq+B[0].len){
+        //if (ems[t].pt>=B[0].pt+B[0].len-1 && ems[t].pq>=B[0].pq+B[0].len-1){
             right.push_back(ems[t]);
         }
     }
@@ -315,4 +327,20 @@ void NucleotideAlignmentMethod::find_exact_match_segment_chain(const NucleotideA
 
     q0=ems[si[0]].pq;
     q1=ems[si[si.size()-1]].pq+ems[si[si.size()-1]].len-1;
+}
+
+/**
+ * @brief NucleotideAlignmentMethod::find_exact_match_segment_chain
+ * @param target
+ * @param query
+ * @param t0
+ * @param t1
+ * @param q0
+ * @param q1
+ */
+void NucleotideAlignmentMethod::find_exact_match_segment_chain(const string &target, const string &query, int &t0, int &t1, int &q0, int &q1){
+    NucleotideAlignment temp_align;
+    temp_align.raw_target=target;
+    temp_align.raw_query=query;
+    this->find_exact_match_segment_chain(temp_align, t0, t1, q0, q1);
 }
