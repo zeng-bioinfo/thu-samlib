@@ -4,7 +4,8 @@
 #include <iostream>
 #include <map>
 #include <algorithm>
-#include <boost/random.hpp>
+#include <random>
+#include <chrono>
 using namespace std;
 
 BamFile::BamFile()
@@ -389,12 +390,12 @@ static int bam_random_retrieve_align_func(uint32_t tid, uint32_t pos, int n, con
     return 0;
 }
 
-// temporary function to generate random number
-int bam_random_retrieve_random_generator(int i){
-    boost::mt19937_64 no_state;
-    boost::uniform_int<> rng(0, i-1);
-    return rng(no_state);
-}
+//// temporary function to generate random number
+//int bam_random_retrieve_random_generator(int i){
+//    boost::mt19937_64 no_state;
+//    boost::uniform_int<> rng(0, i-1);
+//    return rng(no_state);
+//}
 
  /**
  * @brief BamFile::bam_random_retrieve
@@ -428,11 +429,20 @@ void BamFile::bam_random_retrieve(string region, int number, BamFilter filter){
     bam_plbuf_push(0, tmp_buf);
 
     // #2 randoly generate sample from read_pool
-    random_shuffle(read_pool.begin(), read_pool.end(), bam_random_retrieve_random_generator);
+    random_shuffle(read_pool.begin(), read_pool.end());
     int sample_size=(number<read_pool.size())?number:read_pool.size();
+
+    int rng_idx=0;
+    if (sample_size<read_pool.size()){
+        unsigned rng_seed=chrono::system_clock::now().time_since_epoch().count();
+        default_random_engine rng_engine(rng_seed);
+        uniform_int_distribution<int> uniform_dist(1, read_pool.size()-sample_size);
+        rng_idx=uniform_dist(rng_engine)-1;
+    }
+
     for (int i=0; i<sample_size; i++){
         BamAlign aln1;
-        aln1.aln_name=read_pool[i];
+        aln1.aln_name=read_pool[i+rng_idx];
         align_pool.push_back(aln1);
         align_idx[aln1.aln_name]=i;
     }

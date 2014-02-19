@@ -30,7 +30,7 @@ int main(int argc, char **argv){
       po::options_description desc("Options");
       desc.add_options()
           ("filename,f", po::value<std::string>(&filename)->required(), "The filename of the alignments")
-          ("output,o", po::value<std::string>(&outfile), "The filename of the output")
+          ("output,o", po::value<std::string>(&outfile)->required(), "The filename of the output")
           ("mode,m", po::value<std::string>(&mode), "Valid option values: nucleotide or homopolymer [nucleotide]")
           ("cycles,c",po::value<int>(&cycles), "The number of virtual sequencing cycles [1]")
           ("dot_matrix,d","Toggle on the dot-matrix output")
@@ -101,7 +101,11 @@ int main(int argc, char **argv){
           }else{                    // homopolymer space
               SemiHomopolymerAlignmentPool align_pool;
               align_pool.open(filename);
-              align_pool.statistics(outfile, cycles);
+              if (vm.count("output")){
+                  align_pool.statistics(outfile, cycles);
+              }else{
+                  align_pool.statistics(cycles);
+              }
           }
       }
       // 2. plot dot matrix

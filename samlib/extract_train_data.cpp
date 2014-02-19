@@ -23,7 +23,7 @@ int main(int argc, char** argv)
     std::string appName = boost::filesystem::basename(argv[0]);
     std::string bam_filename, genome_filename;
     std::string region;
-    int number=1000;
+    int number=10000;
     int block_size=1000;
     int map_qual_thresh=10;
     int aln_length=100;
@@ -36,7 +36,7 @@ int main(int argc, char** argv)
         ("bamfile,b", po::value<std::string>(&bam_filename)->required(), "The filename of BAM file")
         ("genome,g",po::value<std::string>(&genome_filename)->required(), "The filename of genome sequence")
         ("region,r",po::value<std::string>(&region)->required(), "Region specification, e.g. chr20:1000000-1500000")
-        ("number,n",po::value<int>(&number), "The number of alignments would be extracted out from the specified region [1000]")
+        ("number,n",po::value<int>(&number), "The number of alignments would be extracted out from the specified region [10000]")
         ("block_size,z",po::value<int>(&block_size), "It will divide the region into segments of block_sizes, then extract from each segment evenly [1000]")
         ("map_qual_thres,m",po::value<int>(&map_qual_thresh), "The threshod of the mapping quality score [10]")
         ("aln_length,l",po::value<int>(&aln_length), "The threshold of the alignment length [100]")
@@ -93,6 +93,7 @@ int main(int argc, char** argv)
     // division
     int block_num=(g_end-g_beg)/block_size;
     int block_sample_size=number/block_num;
+    int block_residue=number-block_sample_size*block_num;
 
     // sampling
     int i;
@@ -103,10 +104,14 @@ int main(int argc, char** argv)
     BamFile bamfile(bam_filename, genome_filename);
     for (i=0; i<block_num-1; i++){
         sprintf(buffer,"%s:%d-%d",g_name.c_str(),g_beg+i*block_size,g_beg+i*block_size+block_size-1);
-        bamfile.bam_random_retrieve(std::string(buffer),block_sample_size,filter);
+        if (i<block_residue){
+            bamfile.bam_random_retrieve(std::string(buffer),block_sample_size+1,filter);
+        }else{
+            bamfile.bam_random_retrieve(std::string(buffer),block_sample_size,filter);
+        }
     }
     sprintf(buffer,"%s:%d-%d",g_name.c_str(),g_beg+i*block_size,g_beg+i*block_size+block_size-1);
-    bamfile.bam_random_retrieve(std::string(buffer),block_sample_size+number%block_num,filter);
+    bamfile.bam_random_retrieve(std::string(buffer),block_sample_size,filter);
 //*/
 
 
