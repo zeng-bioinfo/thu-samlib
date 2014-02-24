@@ -291,7 +291,7 @@ class SemiHomopolymerAlignmentStat
          * @param pi
          * @param beta
          */
-        void bc_incr1(int strand, int pi, char beta);
+        void bc_incr1(int strand, int pi, int pos, int qual, char beta);
         /**
          * @brief lc_incr1
          * @param strand
@@ -305,7 +305,7 @@ class SemiHomopolymerAlignmentStat
          * @param pi
          * @param qual
          */
-        void qc_incr1(int strand, int pi, int qual);
+        void qc_incr1(int strand, int pi, int pos, int qual);
         /**
          * @brief pqbc_incr1
          * @param strand
@@ -322,7 +322,7 @@ class SemiHomopolymerAlignmentStat
          * @param beta
          * @return
          */
-        int bc_elem1(int strand, int pi, char beta);
+        int bc_elem1(int strand, int pi, int pos, int qual, char beta);
         /**
          * @brief lc_elem1
          * @param strand
@@ -338,7 +338,7 @@ class SemiHomopolymerAlignmentStat
          * @param qual
          * @return
          */
-        int qc_elem1(int strand, int pi, int qual);
+        int qc_elem1(int strand, int pi, int pos, int qual);
         /**
          * @brief pqbc_elem1
          * @param strand

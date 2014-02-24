@@ -59,26 +59,29 @@ namespace SemiHomopolymerAlignmentSpace{
 SemiHomopolymerAlignmentStat::SemiHomopolymerAlignmentStat(){
     // base call table
     this->base_call_table.resize((1<<HomopolymerSpace::STRANDBITSIZE)*
-                                      SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*
-                                      NucleotideSpace::NucleotideSize, 0);
+                                 SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*
+                                 HomopolymerSpace::HomopolymerPosMax*
+                                 NucleotideSpace::QualityScoreSlot*
+                                 NucleotideSpace::NucleotideSize, 0);
     // quality score call table
     this->qual_call_table.resize((1<<HomopolymerSpace::STRANDBITSIZE)*
-                                      SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*
-                                      NucleotideSpace::QualityScoreMax, 0);
+                                 SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*
+                                 NucleotideSpace::QualityScoreSlot*
+                                 NucleotideSpace::QualityScoreMax, 0);
     // length call table
     this->len_call_table.resize((1<<HomopolymerSpace::STRANDBITSIZE)*
-                                     SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*
-                                     HomopolymerSpace::HomopolymerSizeMax, 0);
+                                SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*
+                                HomopolymerSpace::HomopolymerSizeMax, 0);
     // positional quality-score-related base-calling table
     this->pos_qual_base_call_table.resize((1<<HomopolymerSpace::STRANDBITSIZE)*
                                           SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*
                                           HomopolymerSpace::HomopolymerPosMax*
                                           HomopolymerSpace::QualityScoreSlot*
-                                          NucleotideSpace::NucleotideSize);
+                                          NucleotideSpace::NucleotideSize, 0);
     // state transition table
     this->state_trans_table.resize((1<<HomopolymerSpace::STRANDBITSIZE)*
-                                        SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*
-                                        SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE, 0);
+                                   SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*
+                                   SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE, 0);
 }
 
 /**
@@ -236,9 +239,11 @@ int SemiHomopolymerAlignmentStat::lc_elem1(int strand, char alpha, int ell, int 
  * @param pi
  * @param beta
  */
-void SemiHomopolymerAlignmentStat::bc_incr1(int strand, int pi, char beta){
-    uint32_t idx=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::NucleotideSize+
-                 pi*NucleotideSpace::NucleotideSize+
+void SemiHomopolymerAlignmentStat::bc_incr1(int strand, int pi, int pos, int qual, char beta){
+    uint32_t idx=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                 pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                 pos*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                 qual*NucleotideSpace::NucleotideSize+
                  NucleotideSpace::nucl2idx[beta];
     base_call_table[idx]+=1;
 }
@@ -249,9 +254,10 @@ void SemiHomopolymerAlignmentStat::bc_incr1(int strand, int pi, char beta){
  * @param pi
  * @param qual
  */
-void SemiHomopolymerAlignmentStat::qc_incr1(int strand, int pi, int qual){
-    uint32_t idx=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::QualityScoreMax+
-                 pi*NucleotideSpace::QualityScoreMax+
+void SemiHomopolymerAlignmentStat::qc_incr1(int strand, int pi, int pos, int qual){
+    uint32_t idx=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                 pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                 pos*NucleotideSpace::QualityScoreSlot+
                  qual;
     qual_call_table[idx]+=1;
 }
@@ -293,9 +299,11 @@ void SemiHomopolymerAlignmentStat::lc_incr1(int strand, int pi, int kappa){
  * @param beta
  * @return
  */
-int SemiHomopolymerAlignmentStat::bc_elem1(int strand, int pi, char beta){
-    uint32_t idx=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::NucleotideSize+
-                 pi*NucleotideSpace::NucleotideSize+
+int SemiHomopolymerAlignmentStat::bc_elem1(int strand, int pi, int pos, int qual, char beta){
+    uint32_t idx=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                 pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                 pos*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                 qual*NucleotideSpace::NucleotideSize+
                  NucleotideSpace::nucl2idx[beta];
     return base_call_table[idx];
 }
@@ -307,9 +315,10 @@ int SemiHomopolymerAlignmentStat::bc_elem1(int strand, int pi, char beta){
  * @param qual
  * @return
  */
-int SemiHomopolymerAlignmentStat::qc_elem1(int strand, int pi, int qual){
-    uint32_t idx=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::QualityScoreMax+
-                 pi*NucleotideSpace::QualityScoreMax+
+int SemiHomopolymerAlignmentStat::qc_elem1(int strand, int pi, int pos, int qual){
+    uint32_t idx=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                 pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                 pos*NucleotideSpace::QualityScoreSlot+
                  qual;
     return qual_call_table[idx];
 }
@@ -937,19 +946,17 @@ void SemiHomopolymerAlignment::statistics(vector<SemiHomopolymerAlignmentStat> &
         char beta;
         int kappa,qual;
 
-        qual=0;
         kappa=align_query.seq[i].size();
         for (int k=0; k<kappa; k++){
             beta=align_query.seq[i][k];
-            qual+=(int)align_query.qual[i][k]-33;
+            qual=(int)align_query.qual[i][k]-33;
             if (HomopolymerSpace::nucl2idx[beta]<HomopolymerSpace::NucleotideSize){
                 // update base-call table
-                stat[c].bc_incr1(query_strand, pi, beta);
+                stat[c].bc_incr1(query_strand, pi, k, qual/NucleotideSpace::QualityScoreSlotSize, beta);
+                // updaate qual-call table
+                stat[c].qc_incr1(query_strand, pi, k, qual/NucleotideSpace::QualityScoreSlotSize);
             }
         }
-        // update quality-score-call table
-        if (kappa>0)
-            stat[c].qc_incr1(query_strand, pi, int(qual/(kappa+0.)));
 
         // update pos_qual_base_call table
         for (int k=0; k<kappa; k++){
@@ -957,7 +964,7 @@ void SemiHomopolymerAlignment::statistics(vector<SemiHomopolymerAlignmentStat> &
             qual=(int)align_query.qual[i][k]-33;
             if (NucleotideSpace::nucl2idx[beta]<NucleotideSpace::NucleotideSize){
                 stat[c].pqbc_incr1(query_strand, pi, k,
-                                   qual/HomopolymerSpace::QualityScoreSlotSize,
+                                   qual/NucleotideSpace::QualityScoreSlotSize,
                                    NucleotideSpace::nucl2idx[beta]);
             }
         }
@@ -1176,8 +1183,8 @@ void SemiHomopolymerAlignmentPool::statistics(vector<SemiHomopolymerAlignmentSta
                 }
             }
 
-            cout<< "\r"
-                << "Compute statistics   "
+            cout<< "\r";
+            cout<< "Compute alignment statistics   \t"
                 << "[" << bar << "] ";
             sprintf(buffer, "%3.2f", ((i+1)*100.0/(align_pool.size()+0.)));
             cout.width( 3 );

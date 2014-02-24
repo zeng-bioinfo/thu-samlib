@@ -31,7 +31,7 @@ class SemiHomopolymerGHMMOrder1:NucleotideAlignmentMethod
         /**
          * @brief log_prob_base_call
          * Hidden state's base emission probability
-         * Dimension: [STRAND][CYCLE][STATE][BASE]
+         * Dimension: [STRAND][CYCLE][STATE][POSITION][QUALITY][BASE]
          */
         double *log_prob_base_call;
         int size_prob_base_call_table;
@@ -45,7 +45,7 @@ class SemiHomopolymerGHMMOrder1:NucleotideAlignmentMethod
         /**
          * @brief log_prob_qual_call
          * Hidden state's quality emission probability
-         * Dimension: [STRAND][CYCLES][STATE][LENGTH]
+         * Dimension: [STRAND][CYCLES][STATE][POSITION][QUALITY]
          */
         double *log_prob_qual_call;
         int size_prob_qual_call_table;
@@ -65,6 +65,9 @@ class SemiHomopolymerGHMMOrder1:NucleotideAlignmentMethod
          */
         double *glm_poisson_b1;
         int size_glm_poisson_b1_table;
+
+    public:
+        int count_thresh=10;
 
     public:
         /**
@@ -227,10 +230,12 @@ class SemiHomopolymerGHMMOrder1:NucleotideAlignmentMethod
          * @param beta
          * @return
          */
-        int base_call_table_index(int strand, int cycle, int pi, int beta){
-            return strand*cycles*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::NucleotideSize+
-                   cycle*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::NucleotideSize+
-                   pi*NucleotideSpace::NucleotideSize+
+        int base_call_table_index(int strand, int cycle, int pi, int pos, int qual, int beta){
+            return strand*cycles*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*HomopolymerSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                   cycle*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*HomopolymerSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                   pi*HomopolymerSpace::HomopolymerPosMax*HomopolymerSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                   pos*HomopolymerSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                   qual*NucleotideSpace::NucleotideSize+
                    beta;
         }
         /**
@@ -241,10 +246,11 @@ class SemiHomopolymerGHMMOrder1:NucleotideAlignmentMethod
          * @param qual
          * @return
          */
-        int quality_call_table_index(int strand, int cycle, int pi, int qual){
-            return strand*cycles*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::QualityScoreMax+
-                   cycle*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::QualityScoreMax+
-                   pi*NucleotideSpace::QualityScoreMax+
+        int quality_call_table_index(int strand, int cycle, int pi, int pos, int qual){
+            return strand*cycles*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                   cycle*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                   pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                   pos*NucleotideSpace::QualityScoreSlot+
                    qual;
         }
         /**

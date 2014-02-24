@@ -47,10 +47,13 @@ void SemiHomopolymerGHMMOrder1::initialization(){
             SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE;
     size_prob_base_call_table=(1<<HomopolymerSpace::STRANDBITSIZE)*cycles*
             SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*
+            HomopolymerSpace::HomopolymerPosMax*
+            HomopolymerSpace::QualityScoreSlot*
             NucleotideSpace::NucleotideSize;
     size_prob_qual_call_table=(1<<HomopolymerSpace::STRANDBITSIZE)*cycles*
             SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*
-            NucleotideSpace::QualityScoreMax;
+            HomopolymerSpace::HomopolymerPosMax*
+            NucleotideSpace::QualityScoreSlot;
     size_prob_length_call_table=(1<<HomopolymerSpace::STRANDBITSIZE)*cycles*
             SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*
             SemiHomopolymerAlignmentSpace::HOMOPOLYMERSIZEMAX;
@@ -116,7 +119,6 @@ void SemiHomopolymerGHMMOrder1::parameter_estimate(SemiHomopolymerAlignmentPool 
 
     // TODO: compute the initial parameters from given data
     // debug
-    cout << "Compute the initial parameter" << endl;
     parameter_initialize(align_pool);
 
     // TODO: iteratively update the parameters
@@ -160,6 +162,44 @@ void SemiHomopolymerGHMMOrder1::parameter_estimate(SemiHomopolymerAlignmentPool 
         lls1=0;
         // compute new alignments using old parameters
         for (int i=0; i<(int)align_pool.align_pool.size(); i++){
+            {
+                char buffer[1024];
+                // show progress
+                int percent=(int)((i+1)*100.0/(align_pool.align_pool.size()+0.));
+
+                string bar;
+
+                for(int ii = 0; ii < 50; ii++){
+                    if( ii < (percent/2)){
+                        bar.replace(ii,1,"=");
+                    }else if( ii == (percent/2)){
+                        bar.replace(ii,1,">");
+                    }else{
+                        bar.replace(ii,1," ");
+                    }
+                }
+
+                cout<< "\r";
+                cout<< "Compute " << align_pool.align_pool.size() << " re-alignments   \t"
+                    << "[" << bar << "] ";
+                sprintf(buffer, "%.2f", ((i+1)*100.0/(align_pool.align_pool.size()+0.)));
+                cout<< buffer << "%     ";
+
+                if (i%4==0){
+                    cout << "-";
+                }
+                if (i%4==1){
+                    cout << "\\";
+                }
+                if (i%4==2){
+                    cout << "|";
+                }
+                if (i%4==3){
+                    cout << "/";
+                }
+                cout << flush;
+            }
+
             if (every_align_change[i]>0.01){
                 SemiHomopolymerAlignment tmp_aln;
                 double tmp_score=compute_banded_realignment(align_pool.align_pool[i], tmp_aln, band);
@@ -179,43 +219,6 @@ void SemiHomopolymerGHMMOrder1::parameter_estimate(SemiHomopolymerAlignmentPool 
                 lls1+=score0[i];
                 align_pool.align_pool[i]=align0[i];
             }
-
-            {
-                // show progress
-                int percent=(int)((i+1)*100.0/(align_pool.align_pool.size()+0.));
-
-                string bar;
-
-                for(int ii = 0; ii < 50; ii++){
-                    if( ii < (percent/2)){
-                        bar.replace(ii,1,"=");
-                    }else if( ii == (percent/2)){
-                        bar.replace(ii,1,">");
-                    }else{
-                        bar.replace(ii,1," ");
-                    }
-                }
-
-                cout<< "\r"
-                    << "Compute " << align_pool.align_pool.size() << " alignments   "
-                    << "[" << bar << "] ";
-                cout.width( 3 );
-                cout<< percent << "%     ";
-
-                if (i%4==0){
-                    cout << "-";
-                }
-                if (i%4==1){
-                    cout << "\\";
-                }
-                if (i%4==2){
-                    cout << "|";
-                }
-                if (i%4==3){
-                    cout << "/";
-                }
-                cout << flush;
-            }
         }
 
         {
@@ -224,11 +227,10 @@ void SemiHomopolymerGHMMOrder1::parameter_estimate(SemiHomopolymerAlignmentPool 
         }
 
         // counting
-        // debug
-        cout << "Compute new parameters" << endl;
         align_pool.statistics(statistics, cycles);
 
         // compute new parameters
+        cout<<"Compute new parameters"<<endl;
         parameter_update(statistics);
 
         // change of log-likelihood score
@@ -275,6 +277,7 @@ void SemiHomopolymerGHMMOrder1::parameter_initialize(SemiHomopolymerAlignmentPoo
     align_pool.statistics(stat, cycles);
 
     // #2: update the parameters
+    cout << "Compute initial parameters" << endl;
     parameter_update(stat);
 }
 
@@ -491,145 +494,281 @@ void SemiHomopolymerGHMMOrder1::parameter_update_state_trans_prob(const vector<i
  * @param c
  */
 void SemiHomopolymerGHMMOrder1::parameter_update_base_call_prob(const vector<int> &bc_count, int c){
-    int idx,idx0,idx1;
+    int idx,idx0;
+    int last_idx00, last_idx01;
+    int last_idx10, last_idx11;
+    int last_idx20, last_idx21;
+    vector<int> count(NucleotideSpace::NucleotideSize, 0);
+    int num,max_num;
     double norm;
-    vector<double> count(NucleotideSpace::NucleotideSize, 0);
 
     for (int strand=1; strand>=0; strand--){
-        // reset to zero
-        count.assign(count.size(), 0);
-        // summarize from A1 to A20
-        for (int pi=(int)SemiHomopolymerAlignmentSpace::A1; pi<=(int)SemiHomopolymerAlignmentSpace::A20; pi++){
-            for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
-                idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::NucleotideSize+
-                        pi*NucleotideSpace::NucleotideSize+
-                        beta;
-                idx1=beta;
-                count[idx1]+=bc_count[idx0];
+        for (int PI=(int)SemiHomopolymerAlignmentSpace::A1; PI<=(int)SemiHomopolymerAlignmentSpace::T20; PI+=20){
+            // compute pseudo count
+            count.assign(count.size(), 0);
+            for (int pi=PI; pi<PI+20; pi++){
+                for (int i=0; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                            idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    i*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    q*NucleotideSpace::NucleotideSize+
+                                    beta;
+                            count[beta]+=bc_count[idx0];
+                        }
+                    }
+                }
             }
-        }
-        // state: A1..A20
-        for (int pi=(int)SemiHomopolymerAlignmentSpace::A1; pi<=(int)SemiHomopolymerAlignmentSpace::A20; pi++){
             for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
-                idx1=beta;
-                idx=base_call_table_index(strand, c, pi, beta);
-                if (beta==(int)NucleotideSpace::A){
-                    log_prob_base_call[idx]=count[idx1]+1000;
+                if (NucleotideSpace::idx2nucl[beta]==SemiHomopolymerAlignmentSpace::state_alpha[PI]){
+                    count[beta]+=1000;
                 }else{
-                    log_prob_base_call[idx]=count[idx1]+.001;
+                    count[beta]+=1;
+                }
+            }
+
+            // level state
+            last_idx00=-1;
+            last_idx01=-2;
+            for (int pi=PI; pi<PI+20; pi++){
+                max_num=0;
+                for (int i=0; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        num=0;
+                        for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                            idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    i*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    q*NucleotideSpace::NucleotideSize+
+                                    beta;
+                            num+=bc_count[idx0];
+                        }
+                        if (max_num<num) max_num=num;
+                    }
+                }
+                if (last_idx00<0 && max_num>=count_thresh) last_idx00=pi;
+                if (max_num>=count_thresh) last_idx01=pi;
+            }
+            // level position
+            // [last_idx00, last_idx01]
+            for (int pi=last_idx00; pi<=last_idx01; pi++){
+                last_idx10=-1;
+                last_idx11=-2;
+                for (int i=0; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                    max_num=0;
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        num=0;
+                        for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                            idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    i*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    q*NucleotideSpace::NucleotideSize+
+                                    beta;
+                            num+=bc_count[idx0];
+                        }
+                        if (max_num<num) max_num=num;
+                    }
+                    if (last_idx10<0 && max_num>=count_thresh) last_idx10=i;
+                    if (max_num>=count_thresh) last_idx11=i;
+                }
+                // [last_idx10, last_idx11]
+                for (int i=last_idx10; i<=last_idx11; i++){
+                    // level quality
+                    last_idx20=-1;
+                    last_idx21=-2;
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        num=0;
+                        for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                            idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    i*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    q*NucleotideSpace::NucleotideSize+
+                                    beta;
+                            num+=bc_count[idx0];
+                        }
+                        if (last_idx20<0 && num>=count_thresh) last_idx20=q;
+                        if (num>=count_thresh) last_idx21=q;
+                    }
+                    // [last_idx20,last_idx21]
+                    for (int q=last_idx20; q<=last_idx21; q++){
+                        for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                            idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    i*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                                    q*NucleotideSpace::NucleotideSize+
+                                    beta;
+                            idx=this->base_call_table_index(strand, c, pi, i, q, beta);
+                            this->log_prob_base_call[idx]=bc_count[idx0]+1;
+                        }
+                    }
+                    // [0,last_idx20)
+                    for (int q=0; q<last_idx20; q++){
+                        for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                            idx0=this->base_call_table_index(strand, c, pi, i, last_idx20, beta);
+                            idx=this->base_call_table_index(strand, c, pi, i, q, beta);
+                            this->log_prob_base_call[idx]=this->log_prob_base_call[idx0];
+                        }
+                    }
+                    // (last_idx21,inf]
+                    last_idx21=(last_idx21<0)?-1:last_idx21;
+                    for (int q=last_idx21+1; q<NucleotideSpace::QualityScoreSlot; q++){
+                        for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                            idx=this->base_call_table_index(strand, c, pi, i, q, beta);
+                            if (last_idx21==-1){
+                                this->log_prob_base_call[idx]=count[beta];
+                            }else{
+                                idx0=this->base_call_table_index(strand, c, pi, i, last_idx21, beta);
+                                this->log_prob_base_call[idx]=this->log_prob_base_call[idx0];
+                            }
+                        }
+                    }
+                }
+                // [0,last_idx10)
+                for (int i=0; i<last_idx10; i++){
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                            idx0=this->base_call_table_index(strand, c, pi, last_idx10, q, beta);
+                            idx=this->base_call_table_index(strand, c, pi, i, q, beta);
+                            this->log_prob_base_call[idx]=this->log_prob_base_call[idx0];
+                        }
+                    }
+                }
+                // (last_idx11,inf]
+                last_idx11=(last_idx11<0)?-1:last_idx11;
+                for (int i=last_idx11+1; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                            idx=this->base_call_table_index(strand, c, pi, i, q, beta);
+                            if (last_idx11==-1){
+                                this->log_prob_base_call[idx]=count[beta];
+                            }else{
+                                idx0=this->base_call_table_index(strand, c, pi, last_idx11, q, beta);
+                                this->log_prob_base_call[idx]=this->log_prob_base_call[idx0];
+                            }
+                        }
+                    }
+                }
+            }
+            // [0,last_00)
+            for (int pi=PI; pi<last_idx00; pi++){
+                for (int i=0; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                            idx0=this->base_call_table_index(strand, c, last_idx00, i, q, beta);
+                            idx=this->base_call_table_index(strand, c, pi, i, q, beta);
+                            this->log_prob_base_call[idx]=this->log_prob_base_call[idx0];
+                        }
+                    }
+                }
+            }
+            // (last_01,inf]
+            last_idx01=(last_idx01<0)?PI-1:last_idx01;
+            for (int pi=last_idx01+1; pi<PI+20; pi++){
+                for (int i=0; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                            idx=this->base_call_table_index(strand, c, pi, i, q, beta);
+                            if (last_idx01==PI-1){
+                                this->log_prob_base_call[idx]=count[beta];
+                            }else{
+                                idx0=this->base_call_table_index(strand, c, last_idx01, i, q, beta);
+                                this->log_prob_base_call[idx]=this->log_prob_base_call[idx0];
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        // reset to zero
-        count.assign(count.size(), 0);
-        // summarize from C1 to C20
-        for (int pi=(int)SemiHomopolymerAlignmentSpace::C1; pi<=(int)SemiHomopolymerAlignmentSpace::C20; pi++){
-            for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
-                idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::NucleotideSize+
-                        pi*NucleotideSpace::NucleotideSize+
-                        beta;
-                idx1=beta;
-                count[idx1]+=bc_count[idx0];
-            }
-        }
-        // state: C1..C20
-        for (int pi=(int)SemiHomopolymerAlignmentSpace::C1; pi<=(int)SemiHomopolymerAlignmentSpace::C20; pi++){
-            for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
-                idx1=beta;
-                idx=base_call_table_index(strand, c, pi, beta);
-                if (beta==(int)NucleotideSpace::C){
-                    log_prob_base_call[idx]=count[idx1]+1000;
-                }else{
-                    log_prob_base_call[idx]=count[idx1]+.001;
-                }
-            }
-        }
-
-        // reset to zero
-        count.assign(count.size(), 0);
-        // summarize from G1 to G20
-        for (int pi=(int)SemiHomopolymerAlignmentSpace::G1; pi<=(int)SemiHomopolymerAlignmentSpace::G20; pi++){
-            for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
-                idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::NucleotideSize+
-                        pi*NucleotideSpace::NucleotideSize+
-                        beta;
-                idx1=beta;
-                count[idx1]+=bc_count[idx0];
-            }
-        }
-        // state: G1..G20
-        for (int pi=(int)SemiHomopolymerAlignmentSpace::G1; pi<=(int)SemiHomopolymerAlignmentSpace::G20; pi++){
-            for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
-                idx1=beta;
-                idx=base_call_table_index(strand, c, pi, beta);
-                if (beta==(int)NucleotideSpace::G){
-                    log_prob_base_call[idx]=count[idx1]+1000;
-                }else{
-                    log_prob_base_call[idx]=count[idx1]+.001;
-                }
-            }
-        }
-
-        // reset to zero
-        count.assign(count.size(), 0);
-        // summarize from T1 to T20
-        for (int pi=(int)SemiHomopolymerAlignmentSpace::T1; pi<=(int)SemiHomopolymerAlignmentSpace::T20; pi++){
-            for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
-                idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::NucleotideSize+
-                        pi*NucleotideSpace::NucleotideSize+
-                        beta;
-                idx1=beta;
-                count[idx1]+=bc_count[idx0];
-            }
-        }
-        // state: T1..T20
-        for (int pi=(int)SemiHomopolymerAlignmentSpace::T1; pi<=(int)SemiHomopolymerAlignmentSpace::T20; pi++){
-            for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
-                idx1=beta;
-                idx=base_call_table_index(strand, c, pi, beta);
-                if (beta==(int)NucleotideSpace::T){
-                    log_prob_base_call[idx]=count[idx1]+1000;
-                }else{
-                    log_prob_base_call[idx]=count[idx1]+.001;
-                }
-            }
-        }
-
-        // reset to zero
-        count.assign(count.size(), 0);
-        // summarize from T1 to T20
+        // <state: I, SH, ST>
+        // compute last_idx0 for level pi
         for (int pi=(int)SemiHomopolymerAlignmentSpace::I; pi<=(int)SemiHomopolymerAlignmentSpace::ST; pi++){
-            for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
-                idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::NucleotideSize+
-                        pi*NucleotideSpace::NucleotideSize+
-                        beta;
-                idx1=beta;
-                count[idx1]+=bc_count[idx0];
+            // compute pseudo count
+            count.assign(count.size(), 0);
+            int i=0;
+            for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                    idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                            pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                            i*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                            q*NucleotideSpace::NucleotideSize+
+                            beta;
+                    count[beta]+=bc_count[idx0];
+                }
             }
-        }
-        // state: I, SH, ST
-        for (int pi=(int)SemiHomopolymerAlignmentSpace::I; pi<=(int)SemiHomopolymerAlignmentSpace::ST; pi++){
             for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
-                idx1=beta;
-                idx=base_call_table_index(strand, c, pi, beta);
-                log_prob_base_call[idx]=count[idx0]+1;
+                count[beta]+=1;
+            }
+            // compute table
+            // level quality
+            last_idx20=-1;
+            last_idx21=-2;
+            for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                num=0;
+                for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                    idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                            pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                            i*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                            q*NucleotideSpace::NucleotideSize+
+                            beta;
+                    num+=bc_count[idx0];
+                }
+                if (last_idx20<0 && num>=count_thresh) last_idx20=q;
+                if (num>=count_thresh) last_idx21=q;
+            }
+            // [last_idx20,last_idx21]
+            for (int q=last_idx20; q<=last_idx21; q++){
+                for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                    idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                            pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                            i*NucleotideSpace::QualityScoreSlot*NucleotideSpace::NucleotideSize+
+                            q*NucleotideSpace::NucleotideSize+
+                            beta;
+                    idx=this->base_call_table_index(strand, c, pi, i, q, beta);
+                    this->log_prob_base_call[idx]=bc_count[idx0]+1;
+                }
+            }
+            // [0,last_idx20)
+            for (int q=0; q<last_idx20; q++){
+                for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                    idx0=this->base_call_table_index(strand, c, pi, i, last_idx20, beta);
+                    idx=this->base_call_table_index(strand, c, pi, i, q, beta);
+                    this->log_prob_base_call[idx]=this->log_prob_base_call[idx0];
+                }
+            }
+            // (last_idx21,inf]
+            last_idx21=(last_idx21<0)?-1:last_idx21;
+            for (int q=last_idx21+1; q<NucleotideSpace::QualityScoreSlot; q++){
+                for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                    idx=this->base_call_table_index(strand, c, pi, i, q, beta);
+                    if (last_idx21==-1){
+                        this->log_prob_base_call[idx]=count[beta];
+                    }else{
+                        idx0=this->base_call_table_index(strand, c, pi, i, last_idx21, beta);
+                        this->log_prob_base_call[idx]=this->log_prob_base_call[idx0];
+                    }
+                }
             }
         }
 
         // compute the probability
         for (int pi=0; pi<=(int)SemiHomopolymerAlignmentSpace::ST; pi++){
-            norm=0;
-            for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
-                idx=base_call_table_index(strand, c, pi, beta);
-                norm+=log_prob_base_call[idx];
-            }
-            for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
-                idx=base_call_table_index(strand, c, pi, beta);
-                if (log_prob_base_call[idx]>0){
-                    log_prob_base_call[idx]=log(log_prob_base_call[idx])-log(norm+1e-7);
-                }else{
-                    log_prob_base_call[idx]=LOGZERO;
+            for (int i=0; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                    norm=0;
+                    for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                        idx=base_call_table_index(strand, c, pi, i, q, beta);
+                        norm+=log_prob_base_call[idx];
+                    }
+                    for (int beta=(int)NucleotideSpace::A; beta<=(int)NucleotideSpace::T; beta++){
+                        idx=base_call_table_index(strand, c, pi, i, q, beta);
+                        if (log_prob_base_call[idx]>0){
+                            log_prob_base_call[idx]=log(log_prob_base_call[idx])-log(norm+1e-7);
+                        }else{
+                            log_prob_base_call[idx]=LOGZERO;
+                        }
+                    }
                 }
             }
         }
@@ -644,30 +783,162 @@ void SemiHomopolymerGHMMOrder1::parameter_update_base_call_prob(const vector<int
 void SemiHomopolymerGHMMOrder1::parameter_update_qual_call_prob(const vector<int> &qc_count, int c){
     for (int strand=1; strand>=0; strand--){
         int idx,idx0;
+        int last_idx00, last_idx01;
+        int last_idx10, last_idx11;
+        int num,max_num;
         double norm;
-        // plus count and pseudo-count
-        for (int pi=0; pi<=(int)SemiHomopolymerAlignmentSpace::ST; pi++){
-            for (int q=0; q<NucleotideSpace::QualityScoreMax; q++){
-                idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*NucleotideSpace::QualityScoreMax+
-                        pi*NucleotideSpace::QualityScoreMax+
-                        q;
-                idx=quality_call_table_index(strand, c, pi, q);
-                log_prob_qual_call[idx]=qc_count[idx0]+1;
+        vector<int> count(NucleotideSpace::QualityScoreSlot);
+        // compute the table
+        // state A1..T20
+        for (int PI=(int)SemiHomopolymerAlignmentSpace::A1; PI<=(int)SemiHomopolymerAlignmentSpace::T20; PI+=20){
+            // compute pseudo count
+            count.assign(count.size(), 0);
+            for (int pi=PI; pi<PI+20; pi++){
+                for (int i=0; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                                pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                                i*NucleotideSpace::QualityScoreSlot+
+                                q;
+                        count[q]+=qc_count[idx0];
+                    }
+                }
+            }
+            for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                count[q]+=1;
+            }
+            // level state
+            last_idx00=-1;
+            last_idx01=-2;
+            for (int pi=PI; pi<PI+20; pi++){
+                max_num=0;
+                for (int i=0; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                    num=0;
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                                pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                                i*NucleotideSpace::QualityScoreSlot+
+                                q;
+                        num+=qc_count[idx0];
+                    }
+                    if (max_num<num) max_num=num;
+                }
+                if (last_idx00<0 && max_num>=count_thresh) last_idx00=pi;
+                if (max_num>=count_thresh) last_idx01=pi;
+            }
+            // [last_idx00,last_idx01]
+            for (int pi=last_idx00; pi<=last_idx01; pi++){
+                // level position
+                last_idx10=-1;
+                last_idx11=-2;
+                for (int i=0; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                    num=0;
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                                pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                                i*NucleotideSpace::QualityScoreSlot+
+                                q;
+                        num+=qc_count[idx0];
+                    }
+                    if (last_idx10<0 && num>=count_thresh) last_idx10=i;
+                    if (num>=count_thresh) last_idx11=i;
+                }
+                // [last_idx10,last_idx11]
+                for (int i=last_idx10; i<=last_idx11; i++){
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                                pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                                i*NucleotideSpace::QualityScoreSlot+
+                                q;
+                        idx=this->quality_call_table_index(strand, c, pi, i, q);
+                        this->log_prob_qual_call[idx]=qc_count[idx0]+1;
+                    }
+                }
+                // [0,last_idx10)
+                for (int i=0; i<last_idx10; i++){
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        idx0=this->quality_call_table_index(strand, c, pi, last_idx10, q);
+                        idx=this->quality_call_table_index(strand, c, pi, i, q);
+                        this->log_prob_qual_call[idx]=this->log_prob_qual_call[idx0];
+                    }
+                }
+                // (last_idx11,inf]
+                last_idx11=(last_idx11<0)?-1:last_idx11;
+                for (int i=last_idx11+1; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        idx=this->quality_call_table_index(strand, c, pi, i, q);
+                        if (last_idx11==-1){
+                            this->log_prob_qual_call[idx]=count[q];
+                        }else{
+                            idx0=this->quality_call_table_index(strand, c, pi, last_idx11, q);
+                            this->log_prob_qual_call[idx]=this->log_prob_qual_call[idx0];
+                        }
+                    }
+                }
+            }
+            // [0,last_idx00)
+            for (int pi=PI; pi<last_idx00; pi++){
+                for (int i=0; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        idx0=this->quality_call_table_index(strand, c, last_idx00, i, q);
+                        idx=this->quality_call_table_index(strand, c, pi, i, q);
+                        this->log_prob_qual_call[idx]=this->log_prob_qual_call[idx0];
+                    }
+                }
+            }
+            // (last_idx01,inf]
+            last_idx01=(last_idx01<0)?PI-1:last_idx01;
+            for (int pi=last_idx01+1; pi<PI+20; pi++){
+                for (int i=0; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                    for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                        idx=this->quality_call_table_index(strand, c, pi, i, q);
+                        if (last_idx01==PI-1){
+                            this->log_prob_qual_call[idx]=count[q];
+                        }else{
+                            idx0=this->quality_call_table_index(strand, c, last_idx01, i, q);
+                            this->log_prob_qual_call[idx]=this->log_prob_qual_call[idx0];
+                        }
+                    }
+                }
             }
         }
+        // state I,SH,ST
+        for (int pi=(int)SemiHomopolymerAlignmentSpace::I; pi<=(int)SemiHomopolymerAlignmentSpace::ST; pi++){
+            // compute pseudo count
+            count.assign(count.size(), 0);
+            int i=0;
+            for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                idx0=strand*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                        pi*HomopolymerSpace::HomopolymerPosMax*NucleotideSpace::QualityScoreSlot+
+                        i*NucleotideSpace::QualityScoreSlot+
+                        q;
+                count[q]+=qc_count[idx0];
+            }
+            for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                count[q]+=1;
+            }
+            // compute table
+            for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                idx=this->quality_call_table_index(strand, c, pi, i, q);
+                this->log_prob_qual_call[idx]=count[q];
+            }
+        }
+
         // compute the probability
         for (int pi=0; pi<=(int)SemiHomopolymerAlignmentSpace::ST; pi++){
-            norm=0;
-            for (int q=0; q<NucleotideSpace::QualityScoreMax; q++){
-                idx=quality_call_table_index(strand, c, pi, q);
-                norm+=log_prob_qual_call[idx];
-            }
-            for (int q=0; q<NucleotideSpace::QualityScoreMax; q++){
-                idx=quality_call_table_index(strand, c, pi, q);
-                if (log_prob_qual_call[idx]>0){
-                    log_prob_qual_call[idx]=log(log_prob_qual_call[idx])-log(norm+1e-7);
-                }else{
-                    log_prob_qual_call[idx]=LOGZERO;
+            for (int i=0; i<HomopolymerSpace::HomopolymerPosMax; i++){
+                norm=0;
+                for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                    idx=quality_call_table_index(strand, c, pi, i, q);
+                    norm+=log_prob_qual_call[idx];
+                }
+                for (int q=0; q<NucleotideSpace::QualityScoreSlot; q++){
+                    idx=quality_call_table_index(strand, c, pi, i, q);
+                    if (log_prob_qual_call[idx]>0){
+                        log_prob_qual_call[idx]=log(log_prob_qual_call[idx])-log(norm+1e-7);
+                    }else{
+                        log_prob_qual_call[idx]=LOGZERO;
+                    }
                 }
             }
         }
@@ -915,45 +1186,61 @@ void SemiHomopolymerGHMMOrder1::parameter_print(){
 
             // title of base-calling table
             cout<<"[#2: Base-Call Probability]"<<endl;
-            sprintf(buffer,"state %10s %10s %10s %10s","A","C","G","T");
+            sprintf(buffer,"state pos qual %10s %10s %10s %10s","A","C","G","T");
             cout<<buffer<<endl;
             for (int pi=0; pi<=(int)SemiHomopolymerAlignmentSpace::ST; pi++){
-                sprintf(buffer,"%3s ",SemiHomopolymerAlignmentSpace::idx2state[pi].c_str());
-                for (int beta=HomopolymerSpace::A; beta<=HomopolymerSpace::T; beta++){
-                    idx=base_call_table_index(strand, c, pi, beta);
-                    sprintf(buffer,"%s %10g",buffer,exp(log_prob_base_call[idx]));
+                for (int pos=0; pos<HomopolymerSpace::HomopolymerPosMax; pos++){
+                    for (int qual=0; qual<NucleotideSpace::QualityScoreSlot; qual++){
+                        sprintf(buffer,"%3s  ",SemiHomopolymerAlignmentSpace::idx2state[pi].c_str());
+                        sprintf(buffer,"%s %d %d", buffer, pos, qual);
+                        for (int beta=HomopolymerSpace::A; beta<=HomopolymerSpace::T; beta++){
+                            idx=base_call_table_index(strand, c, pi, pos, qual, beta);
+                            sprintf(buffer,"%s %10g",buffer,exp(log_prob_base_call[idx]));
+                        }
+                        cout<<buffer<<endl;
+                    }
                 }
-                cout<<buffer<<endl;
             }
 
             // title of quality-calling table
             cout<<"[#3: Quality-Score-Call Probability]"<<endl;
-            sprintf(buffer,"state");
-            for (int qual=0; qual<HomopolymerSpace::QualityScoreMax; qual++){
+            sprintf(buffer,"state pos");
+            for (int qual=0; qual<HomopolymerSpace::QualityScoreSlot; qual++){
                 sprintf(buffer, "%s %10d", buffer, qual);
             }
             cout<<buffer<<endl;
             for (int pi=0; pi<=(int)SemiHomopolymerAlignmentSpace::ST; pi++){
-                sprintf(buffer,"%3s  ",SemiHomopolymerAlignmentSpace::idx2state[pi].c_str());
-                for (int qual=0; qual<HomopolymerSpace::QualityScoreMax; qual++){
-                    idx=quality_call_table_index(strand, c, pi, qual);
-                    sprintf(buffer, "%s %10g",buffer,exp(log_prob_qual_call[idx]));
+                for (int pos=0; pos<HomopolymerSpace::HomopolymerPosMax; pos++){
+                    sprintf(buffer,"%3s  ",SemiHomopolymerAlignmentSpace::idx2state[pi].c_str());
+                    sprintf(buffer, "%s %d", buffer, pos);
+                    for (int qual=0; qual<HomopolymerSpace::QualityScoreSlot; qual++){
+                        idx=quality_call_table_index(strand, c, pi, pos, qual);
+                        sprintf(buffer, "%s %10g",buffer,exp(log_prob_qual_call[idx]));
+                    }
+                    cout<<buffer<<endl;
                 }
-                cout<<buffer<<endl;
             }
 
             // title of length-calling table
             cout<<"[#4: Length-Call Probability]"<<endl;
+            idx=strand*cycles*NucleotideSpace::NucleotideSize+c*NucleotideSpace::NucleotideSize+(int)NucleotideSpace::A;
+            cout<<"A: "<<glm_poisson_b0[idx]<<" "<<glm_poisson_b1[idx]<<endl;
+            idx=strand*cycles*NucleotideSpace::NucleotideSize+c*NucleotideSpace::NucleotideSize+(int)NucleotideSpace::C;
+            cout<<"C: "<<glm_poisson_b0[idx]<<" "<<glm_poisson_b1[idx]<<endl;
+            idx=strand*cycles*NucleotideSpace::NucleotideSize+c*NucleotideSpace::NucleotideSize+(int)NucleotideSpace::G;
+            cout<<"G: "<<glm_poisson_b0[idx]<<" "<<glm_poisson_b1[idx]<<endl;
+            idx=strand*cycles*NucleotideSpace::NucleotideSize+c*NucleotideSpace::NucleotideSize+(int)NucleotideSpace::T;
+            cout<<"T: "<<glm_poisson_b0[idx]<<" "<<glm_poisson_b1[idx]<<endl;
+
             sprintf(buffer,"state");
             for (int kappa=0; kappa<HomopolymerSpace::HomopolymerSizeMax; kappa++){
                 sprintf(buffer,"%s %10d",buffer, kappa);
             }
             cout<<buffer<<endl;
-
             for (int pi=0; pi<=(int)SemiHomopolymerAlignmentSpace::T20; pi++){
                 sprintf(buffer,"%3s  ",SemiHomopolymerAlignmentSpace::idx2state[pi].c_str());
                 for (int kappa=0; kappa<HomopolymerSpace::HomopolymerSizeMax; kappa++){
-                    idx=length_call_table_index(strand, c, pi, kappa);
+                    idx=length_call_table_index(strand, c , pi, kappa);
                     sprintf(buffer, "%s %10g",buffer,exp(log_prob_length_call[idx]));
                 }
                 cout<<buffer<<endl;
@@ -1040,31 +1327,39 @@ void SemiHomopolymerGHMMOrder1::parameter_print(string filename){
 
                 // title of base-calling table
                 output<<"[#2: Base-Call Probability]"<<endl;
-                sprintf(buffer,"state %10s %10s %10s %10s","A","C","G","T");
+                sprintf(buffer,"state pos qual %10s %10s %10s %10s","A","C","G","T");
                 output<<buffer<<endl;
                 for (int pi=0; pi<=(int)SemiHomopolymerAlignmentSpace::ST; pi++){
-                    sprintf(buffer,"%3s  ",SemiHomopolymerAlignmentSpace::idx2state[pi].c_str());
-                    for (int beta=HomopolymerSpace::A; beta<=HomopolymerSpace::T; beta++){
-                        idx=base_call_table_index(strand, c, pi, beta);
-                        sprintf(buffer,"%s %10g",buffer,exp(log_prob_base_call[idx]));
+                    for (int pos=0; pos<HomopolymerSpace::HomopolymerPosMax; pos++){
+                        for (int qual=0; qual<NucleotideSpace::QualityScoreSlot; qual++){
+                            sprintf(buffer,"%3s  ",SemiHomopolymerAlignmentSpace::idx2state[pi].c_str());
+                            sprintf(buffer,"%s %d %d", buffer, pos, qual);
+                            for (int beta=HomopolymerSpace::A; beta<=HomopolymerSpace::T; beta++){
+                                idx=base_call_table_index(strand, c, pi, pos, qual, beta);
+                                sprintf(buffer,"%s %10g",buffer,exp(log_prob_base_call[idx]));
+                            }
+                            output<<buffer<<endl;
+                        }
                     }
-                    output<<buffer<<endl;
                 }
 
                 // title of quality-calling table
                 output<<"[#3: Quality-Score-Call Probability]"<<endl;
-                sprintf(buffer,"state");
-                for (int qual=0; qual<HomopolymerSpace::QualityScoreMax; qual++){
+                sprintf(buffer,"state pos");
+                for (int qual=0; qual<HomopolymerSpace::QualityScoreSlot; qual++){
                     sprintf(buffer, "%s %10d", buffer, qual);
                 }
                 output<<buffer<<endl;
                 for (int pi=0; pi<=(int)SemiHomopolymerAlignmentSpace::ST; pi++){
-                    sprintf(buffer,"%3s  ",SemiHomopolymerAlignmentSpace::idx2state[pi].c_str());
-                    for (int qual=0; qual<HomopolymerSpace::QualityScoreMax; qual++){
-                        idx=quality_call_table_index(strand, c, pi, qual);
-                        sprintf(buffer, "%s %10g",buffer,exp(log_prob_qual_call[idx]));
+                    for (int pos=0; pos<HomopolymerSpace::HomopolymerPosMax; pos++){
+                        sprintf(buffer,"%3s  ",SemiHomopolymerAlignmentSpace::idx2state[pi].c_str());
+                        sprintf(buffer, "%s %d", buffer, pos);
+                        for (int qual=0; qual<HomopolymerSpace::QualityScoreSlot; qual++){
+                            idx=quality_call_table_index(strand, c, pi, pos, qual);
+                            sprintf(buffer, "%s %10g",buffer,exp(log_prob_qual_call[idx]));
+                        }
+                        output<<buffer<<endl;
                     }
-                    output<<buffer<<endl;
                 }
 
                 // title of length-calling table
@@ -1376,14 +1671,8 @@ double SemiHomopolymerGHMMOrder1::compute_banded_alignment(const string &id, con
         int c=(int)((t0+T.t0[hi])*cycles/(mm+0.1));
         int dk=1;
         for (; dk<SemiHomopolymerAlignmentSpace::HOMOPOLYMERSIZEMAX; dk++){
-            int idx1=strand*cycles*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*SemiHomopolymerAlignmentSpace::HOMOPOLYMERSIZEMAX
-                    +c*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*SemiHomopolymerAlignmentSpace::HOMOPOLYMERSIZEMAX
-                    +pi*SemiHomopolymerAlignmentSpace::HOMOPOLYMERSIZEMAX
-                    +(ell-dk);
-            int idx2=strand*cycles*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*SemiHomopolymerAlignmentSpace::HOMOPOLYMERSIZEMAX
-                    +c*SemiHomopolymerAlignmentSpace::ALIGNMENTSTATSIZE*SemiHomopolymerAlignmentSpace::HOMOPOLYMERSIZEMAX
-                    +pi*SemiHomopolymerAlignmentSpace::HOMOPOLYMERSIZEMAX
-                    +(ell+dk);
+            int idx1=this->length_call_table_index(strand, c, pi, ell-dk);
+            int idx2=this->length_call_table_index(strand, c, pi, ell+dk);
             double lpp=0;
             if (ell-dk>=0)
                 lpp+=log_prob_length_call[idx1];
@@ -1420,11 +1709,13 @@ double SemiHomopolymerGHMMOrder1::compute_banded_alignment(const string &id, con
         int ppi=-1;
 
         // sequence emission
-        int bidx=base_call_table_index(strand, 0, (int)SemiHomopolymerAlignmentSpace::SH, NucleotideSpace::nucl2idx[query[j]]);
+        int bidx=base_call_table_index(strand, 0, (int)SemiHomopolymerAlignmentSpace::SH,
+                                       0, ((int)quality[j]-33)/NucleotideSpace::QualityScoreSlotSize ,NucleotideSpace::nucl2idx[query[j]]);
         viterbi_score+=log_prob_base_call[bidx];
 
         // quality emission
-        int qidx=quality_call_table_index(strand, 0, (int)SemiHomopolymerAlignmentSpace::SH, (int)quality[j]-33);
+        int qidx=quality_call_table_index(strand, 0, (int)SemiHomopolymerAlignmentSpace::SH,
+                                          0, ((int)quality[j]-33)/NucleotideSpace::QualityScoreSlotSize);
         viterbi_score+=log_prob_qual_call[qidx];
 
         // state probability
@@ -1473,22 +1764,15 @@ double SemiHomopolymerGHMMOrder1::compute_banded_alignment(const string &id, con
             // hidden state <alpha,ell>
             for (int k=K0[i*n+j]; k<=K1[i*n+j]; k++){
                 emission_score=0;
-                // block quality score
-                int qual=0.0;
-                for (int jj=j-k+1; jj<=j; jj++){
-                    qual+=(int)quality[jj]-33;
-                }
-                if (k>0) qual/=k+0.;
                 // sequence and quality emission
                 for (int jj=j-k+1;jj<=j; jj++){
+                    int qual=((int)quality[jj]-33);
                     // sequence emission
                     int bi=NucleotideSpace::nucl2idx[query[jj]];
-                    int bidx=base_call_table_index(strand, c, pi, bi);
+                    int bidx=base_call_table_index(strand, c, pi, jj-(j-k+1), qual/NucleotideSpace::QualityScoreSlotSize, bi);
                     emission_score+=log_prob_base_call[bidx];
-                }
-                for (int jj=j-k+1;jj<=j; jj++){
                     // quality emission
-                    int qidx=quality_call_table_index(strand, c, pi, qual);
+                    int qidx=quality_call_table_index(strand, c, pi, jj-(j-k+1), qual/NucleotideSpace::QualityScoreSlotSize);
                     emission_score+=log_prob_qual_call[qidx];
                 }
 
@@ -1562,10 +1846,12 @@ double SemiHomopolymerGHMMOrder1::compute_banded_alignment(const string &id, con
                 max_ppi=-1;
                 max_k=-1;
                 // sequence emission
-                int bidx=base_call_table_index(strand, c, (int)SemiHomopolymerAlignmentSpace::I, NucleotideSpace::nucl2idx[query[j]]);
+                int bidx=base_call_table_index(strand, c, (int)SemiHomopolymerAlignmentSpace::I,
+                                               0, ((int)quality[j]-33)/NucleotideSpace::QualityScoreSlotSize, NucleotideSpace::nucl2idx[query[j]]);
                 emission_score=log_prob_base_call[bidx];
                 // quality emission
-                int qidx=quality_call_table_index(strand, c, (int)SemiHomopolymerAlignmentSpace::I, (int)quality[j]-33);
+                int qidx=quality_call_table_index(strand, c, (int)SemiHomopolymerAlignmentSpace::I,
+                                                  0, ((int)quality[j]-33)/NucleotideSpace::QualityScoreSlotSize);
                 emission_score+=log_prob_qual_call[qidx];
                 // state probability
                 for (int ppi=0; ppi<=(int)SemiHomopolymerAlignmentSpace::I; ppi++){
@@ -1618,10 +1904,12 @@ double SemiHomopolymerGHMMOrder1::compute_banded_alignment(const string &id, con
         double state_score=0;
 
         // sequence emission
-        int bidx=base_call_table_index(strand, cycles-1, (int)SemiHomopolymerAlignmentSpace::ST, NucleotideSpace::nucl2idx[query[j]]);
+        int bidx=base_call_table_index(strand, cycles-1, (int)SemiHomopolymerAlignmentSpace::ST,
+                                       0, ((int)quality[j]-33)/NucleotideSpace::QualityScoreSlotSize, NucleotideSpace::nucl2idx[query[j]]);
         emission_score+=log_prob_base_call[bidx];
         // quality emission
-        int qidx=quality_call_table_index(strand, cycles-1, (int)SemiHomopolymerAlignmentSpace::ST, (int)quality[j]-33);
+        int qidx=quality_call_table_index(strand, cycles-1, (int)SemiHomopolymerAlignmentSpace::ST,
+                                          0, ((int)quality[j]-33)/NucleotideSpace::QualityScoreSlotSize);
         emission_score+=log_prob_qual_call[qidx];
         // state probability
         if (j==q1+1){
@@ -1834,12 +2122,12 @@ double SemiHomopolymerGHMMOrder1::compute_log_likelihood_score(const SemiHomopol
         // base emission
         for (int j=0; j<(int)qs.length(); j++){
             int beta=NucleotideSpace::nucl2idx[qs[j]];
-            idx=base_call_table_index(align.query_strand, c, pi, beta);
+            idx=base_call_table_index(align.query_strand, c, pi, j, ((int)qq[j]-33)/NucleotideSpace::QualityScoreSlotSize, beta);
             es+=log_prob_base_call[idx];
         }
         // quality emission
         for (int j=0; j<(int)qq.length(); j++){
-            idx=quality_call_table_index(align.query_strand, c, pi, (int)qq[j]-33);
+            idx=quality_call_table_index(align.query_strand, c, pi, j, ((int)qq[j]-33)/NucleotideSpace::QualityScoreSlotSize);
             es+=log_prob_qual_call[idx];
         }
         // length emission
