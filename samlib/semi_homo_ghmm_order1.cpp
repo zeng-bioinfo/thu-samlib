@@ -333,6 +333,11 @@ void SemiHomopolymerGHMMOrder1::parameter_update(vector<SemiHomopolymerAlignment
     }
     GLM::irls(X.data(),y.data(),n,gb,100,1e-7);
 
+    if (gb[0]!=gb[0] || gb[1]!=gb[1]){
+        gb[0]=log(1e-5);
+        gb[1]=0;
+    }
+
 
     // update parameters
     for (int c=0; c<cycles; c++){
