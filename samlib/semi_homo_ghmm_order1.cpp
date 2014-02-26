@@ -185,18 +185,6 @@ void SemiHomopolymerGHMMOrder1::parameter_estimate(SemiHomopolymerAlignmentPool 
                 sprintf(buffer, "%.2f", ((i+1)*100.0/(align_pool.align_pool.size()+0.)));
                 cout<< buffer << "%     ";
 
-                if (i%4==0){
-                    cout << "-";
-                }
-                if (i%4==1){
-                    cout << "\\";
-                }
-                if (i%4==2){
-                    cout << "|";
-                }
-                if (i%4==3){
-                    cout << "/";
-                }
                 cout << flush;
             }
 

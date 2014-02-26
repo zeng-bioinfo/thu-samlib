@@ -67,7 +67,7 @@ class SemiHomopolymerGHMMOrder1:NucleotideAlignmentMethod
         int size_glm_poisson_b1_table;
 
     public:
-        int count_thresh=10;
+        int count_thresh=1000;
 
     public:
         /**
